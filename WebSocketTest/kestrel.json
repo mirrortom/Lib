@@ -1,0 +1,3 @@
+﻿{
+  "server.urls": "http://localhost:10800;http://*:10800"
+}
