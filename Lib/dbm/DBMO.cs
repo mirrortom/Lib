@@ -17,7 +17,7 @@ namespace Lib.dbm
         /// <summary>
         /// sql参数名字前缀符号.默认@,oracle要用:
         /// </summary>
-        protected char sqlParaPrefixChar = '@';
+        protected char paraPrefixChar = '@';
 
         /// <summary>
         /// sql参数匹配正则
@@ -25,12 +25,12 @@ namespace Lib.dbm
         /// 命名规则:一个@开头,1字母,后面字母数字.
         /// 该正则 不匹配 @@xxx @1 匹配@a_1.
         /// </summary>
-        protected string sqlParaRege = @"(?<!@)@[a-zA-Z]+[a-zA-Z\d_]*";
+        protected string paraRege = @"(?<!@)@[a-zA-Z]+[a-zA-Z\d_]*";
 
         /// <summary>
         /// 当前连接串
         /// </summary>
-        protected string _connectionString;
+        protected string connString;
 
         /// <summary>
         /// 当前连接
@@ -68,7 +68,7 @@ namespace Lib.dbm
                 {
                     // 建立链接对象,打开连接
                     this.ConnInstance();
-                    this.conn.ConnectionString = this._connectionString;
+                    this.conn.ConnectionString = this.connString;
                     this.conn.Open();
                     // 将命令适用于此连接
                     if (!isTranStart)
@@ -110,6 +110,7 @@ namespace Lib.dbm
                 this.conn.Dispose();
                 this.conn = null;
                 this.cmd = null;
+                this.message = null;
             }
         }
         #endregion
@@ -225,7 +226,7 @@ namespace Lib.dbm
         /// </summary>
         public int Insert(string sqlhalf, params object[] paras)
         {
-            string sql = DBMO.AutoCmptInsertSql(sqlhalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptInsertSql(sqlhalf, this.paraPrefixChar);
             this.InItCmd(sql, paras);
             return this.SelectNon();
         }
@@ -235,7 +236,7 @@ namespace Lib.dbm
         /// </summary>
         public int Insert(string insertHalf, Dictionary<string, object> parasdict)
         {
-            string sql = DBMO.AutoCmptInsertSql(insertHalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptInsertSql(insertHalf, this.paraPrefixChar);
             this.InItCmd(sql, parasdict);
             return this.SelectNon();
         }
@@ -245,7 +246,7 @@ namespace Lib.dbm
         /// </summary>
         public int Insert<Q>(string insertHalf, Q paraentity)
         {
-            string sql = DBMO.AutoCmptInsertSql(insertHalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptInsertSql(insertHalf, this.paraPrefixChar);
             this.InItCmd<Q>(sql, paraentity);
             return this.SelectNon();
         }
@@ -257,7 +258,7 @@ namespace Lib.dbm
         /// </summary>
         public int Update(string sqlhalf, params object[] paras)
         {
-            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
             this.InItCmd(sql, paras);
             return this.SelectNon();
         }
@@ -266,7 +267,7 @@ namespace Lib.dbm
         /// </summary>
         public int Update(string sqlhalf, Dictionary<string, object> parasdict)
         {
-            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
             this.InItCmd(sql, parasdict);
             return this.SelectNon();
         }
@@ -276,7 +277,7 @@ namespace Lib.dbm
         /// <returns></returns>
         public int Update<Q>(string sqlhalf, Q paraentity)
         {
-            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.sqlParaPrefixChar);
+            string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
             this.InItCmd<Q>(sql, paraentity);
             return this.SelectNon();
         }
@@ -397,7 +398,7 @@ namespace Lib.dbm
             this.CmdInstance(sql);
 
             // 匹配出在SQL语句中的参数名,然后以找到的参数名个数加入相应个数的值.
-            MatchCollection paraNames = Regex.Matches(sql, this.sqlParaRege);
+            MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
             if (paraNames.Count == 0) return;
             // 参数不够异常掉
             if (paraNames.Count > paras.Length)
@@ -419,7 +420,7 @@ namespace Lib.dbm
         {
             this.CmdInstance(sql);
 
-            MatchCollection paraNames = Regex.Matches(sql, this.sqlParaRege);
+            MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
             if (paraNames.Count == 0) return;
             if (parasdict == null || paraNames.Count > parasdict.Count)
             {
@@ -450,7 +451,7 @@ namespace Lib.dbm
             this.CmdInstance(sql);
 
             // 匹配出参数名后得到参数集合,使用该集合匹配对象中的属性,找到则赋值否则忽略(参数命名:字母开头可包含数字和下划线)
-            MatchCollection paraNames = Regex.Matches(sql, this.sqlParaRege);
+            MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
             if (paraNames.Count == 0) return;
             if (entity == null)
             {
@@ -460,7 +461,7 @@ namespace Lib.dbm
             for (int i = 0; i < paraNames.Count; i++)
             {
                 string nameItem = paraNames[i].Value;
-                object paraVal = DBNull.Value;
+                object paraVal;
                 FieldInfo f = DBMO.FieldScan<Q>(nameItem[1..], entity);
                 if (f != null)
                 {

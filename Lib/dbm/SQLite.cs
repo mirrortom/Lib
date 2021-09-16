@@ -4,11 +4,11 @@ using System.Data.Common;
 
 namespace Lib.dbm
 {
-    class SQLite : DBMO
+    public class SQLite : DBMO
     {
         public SQLite(string dbPath = null)
         {
-            this._connectionString = dbPath ?? @"data source=e:\db\test.db";
+            this.connString = dbPath ?? @"data source=e:\db\test.db";
         }
         protected override void ConnInstance()
         {

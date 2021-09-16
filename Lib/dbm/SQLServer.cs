@@ -4,11 +4,11 @@ using System.Data.SqlClient;
 
 namespace Lib.dbm
 {
-    class SQLServer : DBMO
+    public class SQLServer : DBMO
     {
         public SQLServer(string connectionString = null)
         {
-            this._connectionString = connectionString ?? @"server=(localdb)\.\mylocaldb;uid=sa;pwd=123456;Initial Catalog=test";
+            this.connString = connectionString ?? @"server=(localdb)\.\mylocaldb;uid=sa;pwd=123456;Initial Catalog=test";
         }
         protected override void ConnInstance()
         {

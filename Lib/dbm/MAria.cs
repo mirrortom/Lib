@@ -4,11 +4,11 @@ using System.Data.Common;
 
 namespace Lib.dbm
 {
-    class MAria : DBMO
+    public class MAria : DBMO
     {
         public MAria(string connectionString = null)
         {
-            this._connectionString = connectionString ?? @"server=localhost;port=3306;database=test;user=root;password=123456;SslMode = none";
+            this.connString = connectionString ?? @"server=localhost;port=3306;database=test;user=root;password=123456;SslMode = none";
         }
         protected override void ConnInstance()
         {
