@@ -25,16 +25,16 @@ namespace Lib
 
         // 日志格式说明
         // ${date} 日期,例: 2020/10/03 12:10:01.749
-        // ${threadid} 线程ID,例: TID-1
-        // ${callsite}/${callsite-linenumber} 类方法行号,例: LibTest.Program.Main/102
+        // ${stacktrace} 调用层次堆栈(不算本类,2层):调用者的类和方法名,例:Test.Program.Main=>BB.Run
         // ${newline} 换行,跨平台的
         // ${message}日志内容
-        private static readonly string contLayout = @"${date} TID-${threadid} ${callsite}/${callsite-linenumber}${newline}${message}${newline}${newline}";
+        // 更多layout字段: https://nlog-project.org/config/?tab=layout-renderers
+        private static readonly string contLayout = @"${date}|${stacktrace:topFrames=3:skipFrames =1}${newline}${message}${newline}${newline}";
 
         // 日志目录文件名,模式
         // ${basedir} 当前应用程序运行根目录.可以修改LogRootPath属性(必须在程序每次部署前)
-        // ${data:format=yyyy}每年一个目录
-        // ${data:format=MM}每月一个目录
+        // ${date:format=yyyy}每年一个目录
+        // ${date:format=MM}每月一个目录
         // 如果日志多,可以继续分下级目录.
         // ${shortdate}.log 以每天年月日做文件名字,2020-10-04.log
         private static readonly string fileNameTpl = @"${basedir}/${logger}/${date:format=yyyy}/${date:format=MM}/${shortdate}.log";
