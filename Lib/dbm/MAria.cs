@@ -2,42 +2,41 @@
 using System;
 using System.Data.Common;
 
-namespace Lib.dbm
+namespace Lib.dbm;
+
+public class MAria : DBMO
 {
-    public class MAria : DBMO
+    public MAria(string connectionString = null)
     {
-        public MAria(string connectionString = null)
-        {
-            this.connString = connectionString ?? @"server=localhost;port=3306;database=test;user=root;password=123456;SslMode = none";
-        }
-        protected override void ConnInstance()
-        {
-            this.conn = new MySqlConnection();
-        }
+        this.connString = connectionString ?? @"server=localhost;port=3306;database=test;user=root;password=123456;SslMode = none";
+    }
+    protected override void ConnInstance()
+    {
+        this.conn = new MySqlConnection();
+    }
 
-        protected override void CmdInstance(string sql)
-        {
-            this.cmd = new MySqlCommand(sql);
-        }
+    protected override void CmdInstance(string sql)
+    {
+        this.cmd = new MySqlCommand(sql);
+    }
 
-        protected override DbParameter ParaInstance(string name, object val)
+    protected override DbParameter ParaInstance(string name, object val)
+    {
+        MySqlParameter para = new()
         {
-            MySqlParameter para = new()
-            {
-                ParameterName = name,
-                Value = val ?? DBNull.Value
-            };
-            return para;
-        }
-        protected override DbParameter OutParaInstance(string name, int dbType)
+            ParameterName = name,
+            Value = val ?? DBNull.Value
+        };
+        return para;
+    }
+    protected override DbParameter OutParaInstance(string name, int dbType)
+    {
+        MySqlParameter para = new()
         {
-            MySqlParameter para = new()
-            {
-                Direction = System.Data.ParameterDirection.Output,
-                ParameterName = name,
-                MySqlDbType = (MySqlDbType)dbType
-            };
-            return para;
-        }
+            Direction = System.Data.ParameterDirection.Output,
+            ParameterName = name,
+            MySqlDbType = (MySqlDbType)dbType
+        };
+        return para;
     }
 }

@@ -6,9 +6,16 @@ namespace Lib.dbm
 {
     public class SQLite : DBMO
     {
+        /// <summary>
+        /// 1. 数据库文件路径
+        /// 2. ":memory:": 内存中的sqlite(暂时没实现,内存中数据库链接关闭时会删除) https://docs.microsoft.com/zh-cn/dotnet/standard/data/sqlite/in-memory-databases
+        /// </summary>
+        /// <param name="dbPath"></param>
         public SQLite(string dbPath = null)
         {
-            this.connString = dbPath ?? @"data source=e:\db\test.db";
+            string dbconstr = dbPath ?? @"e:\db\test.db";
+            this.connString = $"data source={dbconstr}";
+
         }
         protected override void ConnInstance()
         {

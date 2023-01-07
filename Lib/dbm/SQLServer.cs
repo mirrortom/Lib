@@ -2,43 +2,42 @@
 using System.Data.Common;
 using System.Data.SqlClient;
 
-namespace Lib.dbm
+namespace Lib.dbm;
+
+public class SQLServer : DBMO
 {
-    public class SQLServer : DBMO
+    public SQLServer(string connectionString = null)
     {
-        public SQLServer(string connectionString = null)
-        {
-            this.connString = connectionString ?? @"server=(localdb)\.\mylocaldb;uid=sa;pwd=123456;Initial Catalog=test";
-        }
-        protected override void ConnInstance()
-        {
-            this.conn = new SqlConnection();
-        }
+        this.connString = connectionString ?? @"server=(localdb)\.\mylocaldb;uid=sa;pwd=123456;Initial Catalog=test";
+    }
+    protected override void ConnInstance()
+    {
+        this.conn = new SqlConnection();
+    }
 
-        protected override void CmdInstance(string sql)
-        {
-            this.cmd = new SqlCommand(sql);
-        }
+    protected override void CmdInstance(string sql)
+    {
+        this.cmd = new SqlCommand(sql);
+    }
 
-        protected override DbParameter ParaInstance(string name, object val)
+    protected override DbParameter ParaInstance(string name, object val)
+    {
+        SqlParameter para = new()
         {
-            SqlParameter para = new()
-            {
-                ParameterName = name,
-                Value = val ?? DBNull.Value
-            };
-            return para;
-        }
+            ParameterName = name,
+            Value = val ?? DBNull.Value
+        };
+        return para;
+    }
 
-        protected override DbParameter OutParaInstance(string name, int dbType)
+    protected override DbParameter OutParaInstance(string name, int dbType)
+    {
+        SqlParameter para = new()
         {
-            SqlParameter para = new()
-            {
-                Direction = System.Data.ParameterDirection.Output,
-                ParameterName = name,
-                SqlDbType = (System.Data.SqlDbType)dbType
-            };
-            return para;
-        }
+            Direction = System.Data.ParameterDirection.Output,
+            ParameterName = name,
+            SqlDbType = (System.Data.SqlDbType)dbType
+        };
+        return para;
     }
 }
