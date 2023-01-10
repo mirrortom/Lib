@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <link href="mirrorui.css" rel="stylesheet" />
+  <title></title>
+</head>
+<body>
+  <div class="pd-15">
+    <h2>上传文本内容和2M以内文件</h2>
+    <label class="form-label mg-b-5">文本</label>
+    <textarea id="txtContent" class="textarea"></textarea>
+    <div class="text-right">
+      <m-btn id="btnClear" class="">清空文本</m-btn>
+    </div>
+    <m-file id="file1"></m-file>
+    <div class="mg-tb-10">
+      <m-btn id="btn1" class="primary d-block">上传</m-btn>
+    </div>
+    <m-msgshow id="msg1" class="mg-b-15"></m-msgshow>
+    <div class="mg-tb-50">
+      <hr class="line" />
+    </div>
+    <div class="grids-2">
+      <div class="grid">
+        <h2>分块上传大于2M的文件</h2>
+        <m-file id="bigfile1"></m-file>
+        <div class="mg-tb-10">
+          <m-btn id="btn2" class="info d-block">上传</m-btn>
+        </div>
+        <m-msgshow id="msg2" class="mg-b-15"></m-msgshow>
+      </div>
+      <div class="grid">
+        <div id="logbox" style="max-height:240px;overflow-y:auto" class="layout-v bg-gray-lt pd-15"></div>
+      </div>
+    </div>
+    <br />
+  </div>
+  <script charset="utf-8" src="jslib.js"></script>
+  <script charset="utf-8" src="mirrorui.js"></script>
+  <script>
+    // 测试
+    let url = (apiMethod) => { return "http://localhost:50005/UploadFile" + apiMethod; };
+    // 部署WEB
+    //let url = (apiMethod) => { return "/UploadFile" + apiMethod; };
+    ((win) => {
+      // help
+      let msg = $('#msg1')[0];
+      //上传文本内容和2M以内文件
+      // 文本上传后保存成文本文件
+
+      $('#btn1')[0].onclick = send;
+      async function send() {
+        // FormData 参数对象,含文本和文件
+        let formData = new FormData();
+        // 文本
+        let txtcont = $('#txtContent').val();
+        formData.append('txtcont', txtcont);
+        // 文件
+        let file = $('#file1')[0].files[0];
+        if (file) {
+          if (file.size > 2 * 1024 * 1024) {
+            msg.warn('文件超2M时,请用大文件传递!');
+            return;
+          }
+          formData.append(file.name, file);
+        }
+        // send
+        try {
+          let json = await $.postAsync(url('/index'), formData);
+          if (json.errcode == 200) {
+            msg.ok(json.errmsg);
+            return;
+          }
+          msg.err(json.errmsg);
+        } catch (err) {
+          msg.err(err.message);
+        }
+      }
+
+      $('#btnClear')[0].onclick = () => {
+        $('#txtContent').val('');
+      }
+
+    })(window);
+
+    ((win) => {
+      // help
+      let msg = $('#msg2')[0];
+      // 大文件分块上传
+      let sIndex = 0, partSize = 1024 * 1024, guid = '';
+      let log = (txt) => { $('#logbox').append($('<p>').text(txt)[0]); };
+
+      // 使用slice()方法获取文件的部分块
+      function getPartFromFile(startIndex, endIndex) {
+        let files = $('#bigfile1')[0].files;
+        if (files.length == 0) {
+          msg.info('未选取!');
+          return null;
+        }
+
+        // 选择文件一部分字节
+        let file = files[0];
+        let partFile = file.slice(startIndex, endIndex);
+        log(`发送编号:${sIndex} 块起止${startIndex}~${endIndex}`);
+        if (partFile.size == 0) {
+          log('文件已经全部读取完! ' + file.name);
+          return file.name;
+        }
+        return partFile;
+      }
+
+      // 发送服务器
+      $('#btn2')[0].onclick = send;
+      async function send() {
+        // 清空log 首次上传时
+        if (sIndex == 0) {
+          $('#logbox').empty();
+        }
+        //
+        let fd = getPartFromFile(sIndex * partSize, (sIndex + 1) * partSize);
+        if (fd == null) return;
+        // 添加到参数 formData的键值到C#后是file.Name
+        let formData = new FormData();
+        // 文件最后一次上传是传名字,文件是空的,上一次传的最后一块.
+        if (typeof fd == 'string') {
+          formData.append('-1|' + guid + '|' + fd, new Blob());
+        } else {
+          formData.append(sIndex + '|' + guid, fd);
+        }
+        // 发送
+        try {
+          let json = await $.postAsync(url('/BigFile'), formData);
+          if (json.errcode == 200) {
+            msg.ok(json.errmsg);
+            // 如果成功,且是最后一块,退出上传
+            if (typeof fd == 'string') {
+              // 起点清零
+              sIndex = 0;
+              guid = '';
+              return;
+            }
+            // 第一块,需要取到guid,标识为同一个文件
+            if (sIndex == 0) {
+              guid = json.guid;
+            }
+            //
+            // 更新取文件位置,继续下个块,递归
+            sIndex++;
+            send();
+            //
+          } else {
+            msg.err(json.errmsg);
+          }
+        } catch (err) {
+          msg.err(err.message);
+        }
+      }
+
+    })(window);
+  </script>
+</body>
+</html>
