@@ -1,21 +1,46 @@
 ﻿<h1>Console App</h1>
-<p>源文件: Demo/AppConsole.cs</p>
+<p>源文件: Demo/ConsoleApp/ConsoleMain.cs</p>
 <p>控制台app模板,采用控制台界面的app的一种设计套路</p>
-<h6>功能模块</h6>
-<p>程序大概都有开始/结束/功能交互接口这些东西,这个程序实现了一些基本功能.</p>
-<ul class="list square">
-  <li>Run开始</li>
-  <li>Exit退出</li>
-  <li>命令字典: 每个命令都是提供的功能,放在一个字典对象里</li>
-  <li>
-    常用命令
-    <ul class="list cir">
-      <li>ls: 显示命令</li>
-      <li>exit: 退出程序 </li>
-      <li>cls: 清除屏幕</li>
-    </ul>
-  </li>
-  <li>查找和执行命令: 分析从控制台输入的命令,解析并找到对应的方法执行</li>
-  <li>列出命令: 提供命令列表</li>
-  <li>清除: 就是控制台的Clear命令</li>
-</ul>
+<p>使用时可继承或套用此模板</p>
+<h4>主要方法</h4>
+
+<h6>Run()</h6>
+<p>程序开始,进入主循环,打印功能列表,等待用户输入命令</p>
+<h6>Exit()</h6>
+<p>终止循环,退出程序.</p>
+<h6>命令字典</h6>
+<p>每个命令都是一个类,实现了IConsoleApp接口,全部放在一个字典对象里</p>
+<p>程序初始化时,会查询main函数所在的程序集中,所有实现了IConsoleApp的类(public),然后实例化,将对象添加到字典里.</p>
+
+<pre class="bg-gray-lt">
+// key是命令名字,value包含命令描述和功能方法
+Dictionary&lt;string, IConsoleApp&gt; Cmds;
+
+// 系统内置命令
+// 程序都有开始/结束/功能交互接口这些东西,这个程序实现了一些基本功能.
+show:   显示命令列表
+exit: 退出程序
+cls:  清除屏幕
+</pre>
+<h6>执行命令</h6>
+<p>根据输入的命令字符串到字典中查找命令,然后执行命令类的Run()方法.</p>
+<pre class="bg-gray-lt">
+// 分析输入的命令字符串,查找执行命令
+protected virtual void ExecCmd(string input)
+</pre>
+<p>单线执行,原则上每次运作周期只有一个命令执行.必须在一个命令执行完成后才可执行下一个.</p>
+<h4>实现命令</h4>
+<pre class="bg-gray-lt">
+IConsoleApp
+{
+  // 命令唯一编号.这个值就是命令,在控制台中输入.
+  public string Name { get; }
+
+  // 命令功能描述
+  public string Desc { get; }
+
+  // 运行命令
+  public void Run(params object[] args);
+}
+</pre>
+<p>每个命令类,就是提供的功能,自定义实现,类需要实现此接口.</p>
