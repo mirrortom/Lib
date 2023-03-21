@@ -1,105 +1,112 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <link href="/mirrorui/mirrorui.css" rel="stylesheet" />
-  <title>示例程序文档 | mirror space</title>
-  <style>
-    .container {
-      display: grid;
-      /*手机端1:4*/
-      grid-template-columns: 25% 75%;
-    }
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link href="/mirrorui/mirrorui.css" rel="stylesheet" />
+    <title>示例程序文档 | mirror space</title>
+    <style>
+        .container {
+            display: grid;
+            /*手机端1:4*/
+            grid-template-columns: 25% 75%;
+        }
 
-    .mainmenubox, .nav-page-inside {
-      position: sticky;
-      top: 0;
-      max-height: 100vh;
-      overflow-x: hidden;
-      overflow-y: auto;
-    }
+        .mainmenubox, .nav-page-inside {
+            position: sticky;
+            top: 0;
+            max-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
 
-    .nav-page-inside {
-      display: none;
-      width: 98%;
-      max-height: 90vh;
-      border: 1px solid var(--color-gray);
-    }
+        .nav-page-inside {
+            display: none;
+            width: 98%;
+            max-height: 90vh;
+            border: 1px solid var(--color-gray);
+        }
 
-    pre {
-      overflow-x: auto;
-      max-width: 100%;
-    }
+        pre {
+            padding: 20px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
 
-    @media only screen and (min-width: 976px) {
-      /*PC端固定210px*/
-      .container {
-        grid-template-columns: 210px auto 190px;
-      }
-      /*页面内导航,仅在pc端可用*/
-      .nav-page-inside {
-        display: block;
-      }
-    }
-  </style>
+        @media only screen and (min-width: 976px) {
+            /*PC端固定210px*/
+            .container {
+                grid-template-columns: 210px auto 190px;
+            }
+            /*页面内导航,仅在pc端可用*/
+            .nav-page-inside {
+                display: block;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="mainmenubox">
-      <m-docmenu class="pd-lr-10 pd-b-30" id="main_menubox">
-        <ul class="docmenu-group">
-          <li>
-            <span class="docmenu-title"><i class="docmenu-open"></i>概述</span>
-          </li>
-          <li><a class="docmenu-item" urlid="about.html">关于</a></li>
-        </ul>
-        <ul class="docmenu-group">
-          <li>
-            <span class="docmenu-title"><i class="docmenu-open"></i>c#</span>
-          </li>
-          <li><a class="docmenu-item" urlid="demo/tcp/socket1.html">socket1</a></li>
-          <li><a class="docmenu-item" urlid="demo/appconsole.html">appconsole</a></li>
-        </ul>
-        <ul class="docmenu-group">
-          <li>
-            <span class="docmenu-title"><i class="docmenu-open"></i>Data</span>
-          </li>
-          <li><a class="docmenu-item" urlid="demo/db/dicts.html">选项表</a></li>
-        </ul>
-      </m-docmenu>
-    </div>
+    <div class="container">
+        <div class="mainmenubox">
+            <m-docmenu class="pd-lr-10 pd-b-30" id="main_menubox">
+                <ul class="docmenu-group">
+                    <li>
+                        <span class="docmenu-title"><i class="docmenu-open"></i>概述</span>
+                    </li>
+                    <li><a class="docmenu-item" urlid="about.html">关于</a></li>
+                </ul>
+                <ul class="docmenu-group">
+                    <li>
+                        <span class="docmenu-title"><i class="docmenu-open"></i>c#</span>
+                    </li>
+                    <li><a class="docmenu-item" urlid="demo/tcp/socket1.html">socket1</a></li>
+                    <li><a class="docmenu-item" urlid="demo/appconsole.html">appconsole</a></li>
+                </ul>
+                <ul class="docmenu-group">
+                    <li>
+                        <span class="docmenu-title"><i class="docmenu-open"></i>Data</span>
+                    </li>
+                    <li><a class="docmenu-item" urlid="db/dicts.html">选项表</a></li>
+                </ul>
+                <ul class="docmenu-group">
+                    <li>
+                        <span class="docmenu-title"><i class="docmenu-open"></i>Web</span>
+                    </li>
+                    <li><a class="docmenu-item" urlid="webdemo/partupload.html">文件分块上传</a></li>
+                </ul>
+            </m-docmenu>
+        </div>
 
-    <div class="pd-15 pd-b-50" id="page_content"></div>
-    <div class="nav-page-inside">
-      <h6 class="text-center">文档内容</h6>
-      <div class="layout-v" id="navOfInPage"></div>
+        <div class="pd-15 pd-b-50" id="page_content"></div>
+        <div class="nav-page-inside">
+            <h6 class="text-center">文档内容</h6>
+            <div class="layout-v" id="navOfInPage"></div>
+        </div>
     </div>
-  </div>
-  <script src="/jslib/jslib.js"></script>
-  <script src="/mirrorui/mirrorui.js"></script>
-  <script src="/cavlib/cavlib.js"></script>
-  <script>
-    ((win) => {
-      $('#main_menubox')[0].create(null, (menu) => {
-        $('#page_content').load($(menu).prop('urlid'), navInPage);
-      });
-      $('#main_menubox')[0].activeItem(3);
+    <script src="/jslib/jslib.js"></script>
+    <script src="/mirrorui/mirrorui.js"></script>
+    <script src="/cavlib/cavlib.js"></script>
+    <script>
+        ((win) => {
+            $('#main_menubox')[0].create(null, (menu) => {
+                $('#page_content').load($(menu).prop('urlid'), navInPage);
+            });
+            $('#main_menubox')[0].activeItem(0);
 
-      // 生成页面内导航
-      // 找出页面内所有的标题,生成一个导航列表,用<a href=#id>的方式在页面内定位.由js生成标题dom的id属性.
-      // 标题是指h1~h6标记和使用了class=article-title的p标记.
-      // 列表dom生成后,放在指定id的div里,约定id=navOfInPage
-      function navInPage() {
-        let html = '', menuIndex = 0;
-        $('#page_content').find('p.article-title,h1,h2,h3,h4,h5,h6').each(item => {
-          html += `<div><a href="#m${menuIndex}" class="btn link">${item.innerHTML}</a></div>`;
-          item.id = 'm' + menuIndex;
-          menuIndex++;
-        });
-        $('#navOfInPage').html(html);
-      }
-    })(window);
-  </script>
+            // 生成页面内导航
+            // 找出页面内所有的标题,生成一个导航列表,用<a href=#id>的方式在页面内定位.由js生成标题dom的id属性.
+            // 标题是指h1~h6标记和使用了class=article-title的p标记.
+            // 列表dom生成后,放在指定id的div里,约定id=navOfInPage
+            function navInPage() {
+                let html = '', menuIndex = 0;
+                $('#page_content').find('p.article-title,h1,h2,h3,h4,h5,h6').each(item => {
+                    html += `<div><a href="#m${menuIndex}" class="btn link">${item.innerHTML}</a></div>`;
+                    item.id = 'm' + menuIndex;
+                    menuIndex++;
+                });
+                $('#navOfInPage').html(html);
+            }
+        })(window);
+    </script>
 </body>
 </html>

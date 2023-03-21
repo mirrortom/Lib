@@ -40,10 +40,11 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="about.html" />
-    <Content Include="demo\db\dicts.html" />
+    <Content Include="db\dicts.html" />
     <Content Include="demo\appconsole.html" />
     <Content Include="index.html" />
     <Content Include="demo\tcp\socket1.html" />
+    <Content Include="webdemo\partupload.html" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
