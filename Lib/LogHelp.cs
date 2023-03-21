@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace Lib;
@@ -55,54 +56,74 @@ public class LogHelp
     /// <returns></returns>
     public static void Log(string message, string filename = "", string logDirName = "AppLog", bool yearDir = false, bool monthDir = false, bool dayDir = false)
     {
-        // 进入写锁定.如果其它线程也来访问,则等待
-        // 其后至解除锁定之间的代码不能有异常,否则无法解除写锁定
-        LogWriteLock.EnterWriteLock();
-        // 日志目录与文件名
-        string directory = GetLogPath(logDirName, yearDir, monthDir, dayDir);
-        string fn = filename == ""
-            ? DateTime.Now.Date.ToString("yyyyMMdd") : filename;
-        string path = Path.Combine(directory, fn + ".log");
-        // 超过2M时存为旧文件,名字如:yyyyMMdd(1)
-        if (File.Exists(path))
+        try
         {
-            FileInfo fi = new(path);
-            if (fi.Length > 2000 * 1000)
-            {
-                int count = 1;
-                while (true)
-                {
-                    string oldpath = Path.Combine(directory, $"{fn}({count}).txt");
-                    if (!File.Exists(oldpath))
-                    {
-                        fi.MoveTo(oldpath);
-                        break;
-                    }
-                    count++;
-                }
-            }
+            // 进入写锁定.如果其它线程也来访问,则等待
+            LogWriteLock.EnterWriteLock();
+
+            // 日志目录与文件名
+            string directory = GetLogPath(logDirName, yearDir, monthDir, dayDir);
+            string fn = filename == "" ? DateTime.Now.Date.ToString("yyyyMMdd") : filename;
+            string path = Path.Combine(directory, fn + ".log");
+            // 超过2M时存为旧文件,名字如:yyyyMMdd(1)
+            CheckFile(path, fn, directory);
+            // 开始写入
+            Write(path, message);
         }
-        // 开始写入
-        using (StreamWriter sw = new(path, true))
+        catch (Exception)
         {
-            // 日志记录时间.指下面获取的当时时间.不应理解为日志记录的时间.
-            // (考虑到并发时,日志缓存到了队列,或者本方法正被访问,
-            //   其它线程正在等读写锁解除
-            string WriteTime =
-                DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fff");
-            // 当前调用该日志方法的线程ID
-            string ThreadId =
-                Environment.CurrentManagedThreadId.ToString();
-            string method = System.Reflection.MethodBase.GetCurrentMethod().DeclaringType.FullName;
-            // 
-            sw.WriteLine(
-            $"date:{WriteTime}{Environment.NewLine}{message}{Environment.NewLine}");
         }
-        // 解除写锁定
-        LogWriteLock.ExitWriteLock();
+        finally
+        {
+            // 解除写锁定
+            LogWriteLock.ExitWriteLock();
+        }
+    }
+    /// <summary>
+    /// 写入文件
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="content"></param>
+    private static void Write(string path, string message)
+    {
+        using StreamWriter sw = new(path, true, Encoding.UTF8);
+        // 日志记录时间.指下面获取的当时时间.不应理解为日志记录的时间.
+        // (考虑到并发时,日志缓存到了队列,或者本方法正被访问,
+        //   其它线程正在等读写锁解除
+        string WriteTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fff");
+        // 当前调用该日志方法的线程ID
+        //string ThreadId = Environment.CurrentManagedThreadId.ToString();
+        // 方法名
+        //string method = System.Reflection.MethodBase.GetCurrentMethod().DeclaringType.FullName;
         //
+        sw.WriteLine($"date:{WriteTime}{Environment.NewLine}{message}{Environment.NewLine}");
     }
 
+    /// <summary>
+    /// 检查日志文件 超过2M,保存后,新建.
+    /// </summary>
+    /// <param name="path">日志全名</param>
+    /// <param name="fn">日志名</param>
+    /// <param name="directory">日志目录</param>
+    private static void CheckFile(string path, string fn, string directory)
+    {
+        if (!File.Exists(path))
+            return;
+        FileInfo fi = new(path);
+        if (fi.Length < 2000 * 1000)
+            return;
+        int count = 1;
+        while (true)
+        {
+            string oldpath = Path.Combine(directory, $"{fn}({count}).txt");
+            if (!File.Exists(oldpath))
+            {
+                fi.MoveTo(oldpath);
+                break;
+            }
+            count++;
+        }
+    }
     /// <summary>
     /// 获取日志根目录 如 e:/logs/ 如果目录不存在,则会建立
     /// 注意:未加异常判断.请保证根目录设置(可能在webconfig的rootPath)及目录名有效
