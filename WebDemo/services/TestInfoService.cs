@@ -33,6 +33,7 @@ public class TestInfoService:IHostedService
             Console.WriteLine($"#{k} {n}{dict[k]}{n}");
         }
         Console.WriteLine($"#{n}打开浏览器进行测试. ctrl + c 退出.");
+        Console.WriteLine($"#{n}使用F5开启调试时,只限于服务端部分,页面端自行部署.");
         return Task.CompletedTask;
     }
 

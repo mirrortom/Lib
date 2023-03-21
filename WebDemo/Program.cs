@@ -14,9 +14,9 @@ cfg.Load();
 var webapp = (IApplicationBuilder app) =>
 {
     // 生产环境异常处理
-    app.UseExceptionHandler(ApiHandler.CustomExceptMW);
+    //app.UseExceptionHandler(ApiHandler.CustomExceptMW);
     // 开发环境异常处理 (系统中间件)
-    //app.UseDeveloperExceptionPage();
+    app.UseDeveloperExceptionPage();
 
     // 默认文档,静态文件 (系统中间件)
     app.UseDefaultFiles()
