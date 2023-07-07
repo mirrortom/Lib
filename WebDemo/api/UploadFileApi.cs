@@ -100,7 +100,7 @@ class UploadFileApi : ApiBase
                     return;
                 }
                 // 合并文件,返回结果
-                await this.Json(new { errcode = 200, errmsg = $"文件全部上传完成!({mergeFile})" });
+                await this.Json(new { errcode = 200 });
                 return;
             }
 
