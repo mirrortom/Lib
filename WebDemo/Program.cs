@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using WebDemo;
-using WebDemo.services;
 using cfg = WebDemo.Config;
 
 // 加载配置选项
@@ -45,9 +44,6 @@ host.ConfigureServices((IServiceCollection services) =>
     // MemoryCache内存缓存工具.在ApiBase.SetHttpContext里获取使用
     services.AddMemoryCache();
 
-    // 打印信息,用于测试
-    services.AddSingleton<TestInfoService>()
-            .AddHostedService<TestInfoService>();
 })
 .ConfigureWebHost((IWebHostBuilder webHostBuild) =>
 {

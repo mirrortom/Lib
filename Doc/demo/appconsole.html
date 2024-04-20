@@ -12,7 +12,7 @@
 <p>每个命令都是一个类,实现了IConsoleApp接口,全部放在一个字典对象里</p>
 <p>程序初始化时,会查询main函数所在的程序集中,所有实现了IConsoleApp的类(public),然后实例化,将对象添加到字典里.</p>
 
-<pre class="bg-gray-lt">
+<pre>
 // key是命令名字,value包含命令描述和功能方法
 Dictionary&lt;string, IConsoleApp&gt; Cmds;
 
@@ -24,13 +24,13 @@ cls:  清除屏幕
 </pre>
 <h6>执行命令</h6>
 <p>根据输入的命令字符串到字典中查找命令,然后执行命令类的Run()方法.</p>
-<pre class="bg-gray-lt">
+<pre>
 // 分析输入的命令字符串,查找执行命令
 protected virtual void ExecCmd(string input)
 </pre>
 <p>单线执行,原则上每次运作周期只有一个命令执行.必须在一个命令执行完成后才可执行下一个.</p>
 <h4>实现命令</h4>
-<pre class="bg-gray-lt">
+<pre>
 IConsoleApp
 {
   // 命令唯一编号.这个值就是命令,在控制台中输入.

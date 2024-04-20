@@ -2,9 +2,9 @@
 <p>源文件: None</p>
 <p>crud项目中会有一些选项数据,例如"执行状态":(已开始|进行中|失败|成功).又如"职称":(高级|中级|科员|普通).如果选项值的个数不多(例如少于20个),而且比较固定,那么将所有种类的选项放在一个数据表里统一管理.如果是像省市区那样的选项,虽然也是固定的不会经常变,但由于选项值很多,所以放在一个单独的表里比较合适.</p>
 <p>这些数据是所谓的元(基础)数据,选项对应的类型是字典,表名字可以叫dicts.</p>
-<table class="table border-all">
-  <tr><td colspan="6" class="text-center">dicts</td></tr>
-  <tr class="text-center">
+<table class="table hover border">
+  <tr><th colspan="6">dicts</th></tr>
+  <tr>
     <td>列名 column</td>
     <td>类型 (maria|mssql)</td>
     <td>可空 NULL</td>
@@ -54,7 +54,7 @@
   </tr>
 </table>
 <br />
-<p class="article-title">列说明</p>
+<h4>列说明</h4>
 <h6>主键</h6>
 <p>每个选项使用了一个随机编号当主键,由26小写字母和10个数字组成的6位字符串,组合总数是36^6.这个数量很大,远远超过选项个数.有的微小型项目选项个数不超过100个,长度2位就够.</p>
 <h6>category</h6>
@@ -65,63 +65,59 @@
 <p>orderby是一个整数,用于排序.选项有顺序需求,比如常用的选项排在前面,便于快速选择.</p>
 <h6>status</h6>
 <p>选项数据是元数据,不能随便删除,所以设置可用/不可用状态,例如1=可用2=不可用</p>
-<p class="article-title">sql(maria)</p>
-<pre class="bg-gray-lt">
-
-    -- dicts 建表sql Maria
-    CREATE TABLE `dicts`(
-        `id` CHAR(6) NOT NULL COMMENT '唯一编号,表主键' PRIMARY KEY,
-        `title` VARCHAR(50) NOT NULL COMMENT '选项标题',
-        `category` SMALLINT NOT NULL COMMENT '选项分类.唯一标识',
-        `comment` VARCHAR(50) NOT NULL COMMENT '选项说明',
-        `ctime` DATETIME(3) NOT NULL COMMENT '数据产生时间',
-        `orderby` SMALLINT NOT NULL COMMENT '排序编号',
-        `status` TINYINT unsigned NOT NULL COMMENT '选项状态'
-    )
-
+<h4>sql(maria)</h4>
+<pre>
+-- dicts 建表sql Maria
+CREATE TABLE `dicts`(
+    `id` CHAR(6) NOT NULL COMMENT '唯一编号,表主键' PRIMARY KEY,
+    `title` VARCHAR(50) NOT NULL COMMENT '选项标题',
+    `category` SMALLINT NOT NULL COMMENT '选项分类.唯一标识',
+    `comment` VARCHAR(50) NOT NULL COMMENT '选项说明',
+    `ctime` DATETIME(3) NOT NULL COMMENT '数据产生时间',
+    `orderby` SMALLINT NOT NULL COMMENT '排序编号',
+    `status` TINYINT unsigned NOT NULL COMMENT '选项状态'
+)
 </pre>
-<p class="article-title">c# class</p>
-<pre class="bg-gray-lt">
+<h6>c# class</h6>
+<pre>
+/// &lt;summary&gt;
+/// 数据表: dicts
+/// &lt;/summary&gt;
+public class DictsM
+{
+    /// &lt;summary&gt;
+    /// 选项标题 len=6
+    /// &lt;/summary&gt;
+    public string Id;
 
     /// &lt;summary&gt;
-    /// 数据表: dicts
+    /// 选项标题 maxlen=50
     /// &lt;/summary&gt;
-    public class DictsM
-    {
-        /// &lt;summary&gt;
-        /// 选项标题 len=6
-        /// &lt;/summary&gt;
-        public string Id;
+    public string Title;
 
-        /// &lt;summary&gt;
-        /// 选项标题 maxlen=50
-        /// &lt;/summary&gt;
-        public string Title;
+    /// &lt;summary&gt;
+    /// 选项分类.唯一标识
+    /// &lt;/summary&gt;
+    public int Category;
 
-        /// &lt;summary&gt;
-        /// 选项分类.唯一标识
-        /// &lt;/summary&gt;
-        public int Category;
+    /// &lt;summary&gt;
+    /// 选项说明 maxlen=50
+    /// &lt;/summary&gt;
+    public string Comment;
 
-        /// &lt;summary&gt;
-        /// 选项说明 maxlen=50
-        /// &lt;/summary&gt;
-        public string Comment;
+    /// &lt;summary&gt;
+    /// 数据产生时间
+    /// &lt;/summary&gt;
+    public DateTime Ctime;
 
-        /// &lt;summary&gt;
-        /// 数据产生时间
-        /// &lt;/summary&gt;
-        public DateTime Ctime;
+    /// &lt;summary&gt;
+    /// 排序编号
+    /// &lt;/summary&gt;
+    public int Orderby;
 
-        /// &lt;summary&gt;
-        /// 排序编号
-        /// &lt;/summary&gt;
-        public int Orderby;
-
-        /// &lt;summary&gt;
-        /// 选项状态
-        /// &lt;/summary&gt;
-        public int Status;
-    }
-
+    /// &lt;summary&gt;
+    /// 选项状态
+    /// &lt;/summary&gt;
+    public int Status;
+}
 </pre>

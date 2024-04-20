@@ -15,7 +15,7 @@ namespace WebDemo;
 /// 本类提供了请求上下文对象和一些便利方法处理参数和返回值
 /// 用来提供数据的接口类(类似webapi的Controller),需要继承这个类.
 /// </summary>
-internal class ApiBase
+public class ApiBase
 {
     #region 请求上下文对象及其它工具属性
     /// <summary>

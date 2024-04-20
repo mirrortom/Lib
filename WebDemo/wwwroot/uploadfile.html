@@ -18,30 +18,42 @@
     <div class="mg-tb-30">
       <m-btn id="btn1" class="d-block blue">上传</m-btn>
     </div>
-    <m-msgshow id="msg1" class="mg-b-15"></m-msgshow>
-    <div class="mg-tb-50">
-      <hr class="line" />
-    </div>
-    <div class="grids">
-      <div class="grid-4">
-        <h2>分块上传大于2M的文件</h2>
-        <m-file id="bigfile1" multiple></m-file>
-        <div class="mg-tb-30">
-          <m-btn id="btn2" class="d-block sky">上传</m-btn>
-        </div>
-        <m-msgshow id="msg2" class="mg-b-15"></m-msgshow>
-      </div>
-      <div class="grid-8">
-        <div class="bd mg-l-20 pd-l-10">
-          <label class="form-label">上传信息</label>
-          <div id="logbox" style="max-height:240px;overflow-y:auto" class="layout-v bg-gray-5 text-white-1"></div>
-        </div>
-      </div>
-    </div>
-    <br />
+    <m-msgshow id="msg1" class="mg-b-15 d-none"></m-msgshow>
   </div>
-  <script charset="utf-8" src="jslib.js"></script>
-  <script charset="utf-8" src="mirrorui.js"></script>
+  <div class="mg-tb-50">
+    <hr class="line" />
+  </div>
+  <div class="pd-15">
+    <h2>分块上传大于2M的文件</h2>
+    <m-file class="sky" id="bigfile1" multiple tag="选择文件,总数不要超过64个"></m-file>
+    <div class="text-right">
+      <m-btn id="btnFilesClear" class="">清空文件</m-btn>
+    </div>
+    <div class="mg-tb-30">
+      <m-btn id="btn2" class="d-block sky">上传</m-btn>
+    </div>
+    <m-msgshow id="msg2" class="d-none"></m-msgshow>
+    <div class="mg-b-15">
+      <div class="kvpair cir">
+        <span class="key bd">已上传</span>
+        <span id="uploadedBox" val="0" class="val bd">0</span>
+      </div>
+      <div class="kvpair cir mg-l-15">
+        <span class="key bd bdr">总数</span>
+        <span id="totalBox" class="val bd">0</span>
+      </div>
+    </div>
+    <div id="logbox" style="height:240px;overflow-y:auto" class="layout-v bg-gray-4 text-white-1 bd bdr mg-b-15"></div>
+  </div>
+  <div class="mg-tb-50">
+    <hr class="line" />
+  </div>
+  <div class="pd-15">
+    <h2>从PC上下载文件,提前放在目录tophone_dir,名字不能有空格)</h2>
+    <div class="layout-hw" id="downloadFiles"></div>
+  </div>
+  <script src="jslib.js"></script>
+  <script src="mirrorui.js"></script>
   <script>
     // 测试
     //let url = (apiMethod) => { return "http://localhost:50005/UploadFile" + apiMethod; };
@@ -95,8 +107,26 @@
       // 大文件分块上传
       // help
       let msg = $('#msg2')[0];
-      let log = (txt) => { $('#logbox').append($('<p>').text(txt)[0]); };
-
+      let log = (txt, style) => {
+        let logbox = $('#logbox');
+        logbox.append($('<p>').text(txt).addClass(style)[0]);
+        // 让div的滚动条自动滚动到最后
+        logbox[0].scrollTop = logbox[0].scrollHeight;
+      };
+      let totalShow = (num) => { $('#totalBox').text(num); }
+      let uploadUpdate = () => {
+        let box = $('#uploadedBox');
+        let currentNum = parseInt(box.prop('val'));
+        box.prop('val', currentNum + 1).text(currentNum + 1);
+      }
+      // 清空文件
+      $('#btnFilesClear')[0].onclick = () => {
+        $('#bigfile1')[0].reset();
+        // 清空上传信息区域
+        totalShow(0);
+        $('#uploadedBox').prop('val', 0).text(0);
+        $('#logbox').empty();
+      }
       // 分块大小
       let partSize = 1024 * 1024;
 
@@ -123,6 +153,9 @@
           msg.info('未选取文件!');
           return null;
         }
+        // 显示上传文件个数.
+        totalShow(files.length);
+
         // 上传文件,支持多选
         for (var i = 0; i < files.length; i++) {
           let blockIndex = 0, guid = '', file = files[i];
@@ -151,14 +184,17 @@
           if (json.errcode == 200) {
             // 如果成功,且是最后一块,递归退出
             if (part == 0) {
-              log('√成功上传文件: ' + file.name);
+              log('✔成功上传文件: ' + file.name, 'bg-red-4');
+              // 更新已经上传个数
+              uploadUpdate();
               return;
             }
             // 第一块,服务端会生成并返回guid,以标识为同一个文件.
             if (blockIndex == 0) {
               guid = json.guid;
+              log('上传文件: ' + file.name, 'bg-yellow-4');
             }
-            log(`--上传文件块: 编号/位置: ${blockIndex} / ${startIndex}~${endIndex}`);
+            log(`----编号/位置: ${blockIndex} / ${startIndex}~${endIndex}`);
             // 更新取文件位置,继续下个块,递归
             blockIndex++;
             await send(file, blockIndex, guid);
@@ -171,6 +207,24 @@
         }
       }
 
+    })(window);
+
+    (async (win) => {
+      try {
+        let data = await $.postAsync('/downloadFile/index');
+        let html = '';
+        if (data.result.length > 0) {
+          for (var i = 0; i < data.result.length; i++) {
+            let name = data.result[i];
+            html += `<a class="btn link mg-15" href="/downloadFile/down?id=${name}">📌 ${name}</a>`;
+          }
+        } else {
+          html = '<h5>No files for download!</h5>';
+        }
+        $('#downloadFiles').html(html);
+      } catch (err) {
+
+      }
     })(window);
   </script>
 </body>

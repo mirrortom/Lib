@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name=viewport content="width=device-width,initial-scale=1.0" />
+  <link href="mirrorui.css" rel="stylesheet" />
+  <title>login</title>
+</head>
+<body class="bg-gray-2">
+  <div class="layout-v mg-lr-auto pd-tb-15 bd bg-white-0" style="margin-top:25vh;max-width:320px">
+    <div class="mg-b-10 pd-b-10 text-center">
+      <span class="text-xl">登录</span>
+    </div>
+    <div class="mg-b-15 pd-lr-15">
+      <label class="form-label mg-b-2">手机 / 邮箱 / ID</label>
+      <input class="input-text sky" id="login_account" name="account" type="text" value="" placeholder="请输入账号" vtype="notnull|minlen" verrmsg="必填项|至少4个字符" minlength="4" maxlength="40">
+    </div>
+    <div class="mg-b-15 pd-lr-15">
+      <label class="form-label mg-b-2">密码 (Password)</label>
+      <input class="input-text sky" id="login_pwd" name="pwd" type="password" value="" placeholder="请输入密码" vtype="notnull|minlen" verrmsg="必填项|至少4个字符" minlength="4" maxlength="50">
+    </div>
+    <div class="mg-b-15 pd-lr-15">
+      <m-check id="remembercheck" class="sky" tag="7天免登录"></m-check>
+    </div>
+    <div class="mg-b-10 pd-lr-15">
+      <m-btn class="d-block sky text-md" id="loginBtn">确 定</m-btn>
+    </div>
+    <div class="mg-b-10 pd-lr-15 text-right">
+      <m-btn class="link">找回密码</m-btn>
+      <m-btn class="link">注册账户</m-btn>
+    </div>
+    <m-msgshow id="msginfobox"></m-msgshow>
+  </div>
+  <script src="mirrorui.js"></script>
+  <script src="jslib.js"></script>
+  <script>
+    ((win) => {
+      // help
+      let msg = $('#msginfobox')[0];
+      msg.clear();
+
+      // checkLogin();
+
+      // login Btn
+      $('#loginBtn').click(thisBtn => {
+        login(thisBtn);
+      });
+      // 按回车登录
+      $('#login_pwd')[0].onkeyup = () => {
+        if (window.event.keyCode == 13) {
+          $('#loginBtn').click();
+        }
+      }
+
+      async function login(thisBtn) {
+        msg.clear();
+        let para = checkForm();
+        console.log(para);
+        if (checkForm() == false) return;
+        if (thisBtn.isLoading()) {
+          return;
+        }
+        try {
+          //let data = await $.postAsync(cfg.ApiLogin, para);
+          let data = { errcode: 201,msg:'test info: error!' }
+          if (data.errcode == 200) {
+            // accessToken 设置
+            // token.newToken(data.token);
+            $('#login_pwd').val('')
+            msg.ok('登录成功!跳转中...');
+            //
+            //setTimeout(() => {
+            //  location.href = data.target + '.html';
+            //}, 1500)
+          } else {
+            msg.err(data.msg);
+          }
+          thisBtn.clsLoading(1500);
+        } catch (err) {
+          msg.err(err.message);
+          thisBtn.clsLoading(1500);
+        }
+      }
+
+      function checkForm() {
+        $.formClear($('#login_account')[0]);
+        $.formClear($('#login_pwd')[0]);
+        if ($.formCheck($('#login_account')[0]) == false)
+          return false;
+        if ($.formCheck($('#login_pwd')[0]) == false)
+          return false;
+
+        return {
+          pwd: btoa($('#login_pwd').val()), account: $('#login_account').val(),
+          remember: $('#remembercheck')[0].checked ? 1 : 0
+        };
+      }
+
+      // 检查token,有效直接进入页面.无效不动作.
+      function checkLogin() {
+        let tk = token.get();
+        if (tk == null) return;
+        // 服务端检查
+        $.post(cfg.ApiTokenCheck, { token: tk, client: common.getClientType() })
+          .then((data) => {
+            if (data.errcode == 200) {
+              msg.ok('已经登录!跳转中...');
+              //
+              setTimeout(() => {
+                location.href = data.target + '.html';
+              }, 500)
+            }
+          })
+      }
+    })(window);
+  </script>
+</body>
+</html>

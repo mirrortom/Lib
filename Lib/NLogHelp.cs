@@ -68,12 +68,15 @@ public static class NLogHelp
                 // 这个要开启,否则性能极差
                 // https://github.com/NLog/NLog/wiki/File-target
                 KeepFileOpen = true,
-                ConcurrentWrites = false
+                ConcurrentWrites = false,
+                // 中文乱码,在linux上可能
+                Encoding = System.Text.Encoding.UTF8
             };
             // 加入到配置器
             cfg.AddTarget(target);
             // 级别(Trace,Debug,Info,Warn,Error,Fatal),这里都用Info
-            cfg.AddRule(LogLevel.Info, LogLevel.Info, target);
+            // 未知原因,在ubuntu linux上日志记录会重复3次.使用final:true问题消失
+            cfg.AddRule(LogLevel.Info, LogLevel.Info, target, "*", final: true);
         }
         // 2.1控制台记录器
         var consoleTarget = new ConsoleTarget(logType[3]);
