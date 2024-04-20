@@ -1,24 +1,36 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net6.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<NoDefaultLaunchSettingsFile>True</NoDefaultLaunchSettingsFile>
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Content Remove="bundleconfig.json" />
 	  <Content Remove="publish.json" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Folder Include="BLL\" />
+	  <Folder Include="DAL\" />
 	  <Folder Include="Properties\" />
+	  <Folder Include="Services\" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Include="bundleconfig.json" />
 	  <None Include="publish.json">
 	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
 	  </None>
+	  <None Include="wwwroot\js\globlejs\cfg.part.js" />
+	  <None Include="wwwroot\js\globlejs\errtxt.part.js" />
+	  <None Include="wwwroot\js\globlejs\router.part.js" />
+	  <None Include="wwwroot\js\globlejs\token.part.js" />
+	  <None Include="wwwroot\js\globlejs\tool.part.js" />
+	  <None Include="wwwroot\js\globlejs\_end.part.js" />
+	  <None Include="wwwroot\js\globlejs\_start.part.js" />
 	</ItemGroup>
 
 	<ItemGroup>
