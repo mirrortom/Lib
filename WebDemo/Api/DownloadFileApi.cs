@@ -28,8 +28,7 @@ class DownloadFileApi : ApiBase
     /// 下载文件
     /// </summary>
     /// <returns></returns>
-    [HTTPPOST]
-    [HTTPGET]
+    [HTTPPOST,HTTPGET]
     public async Task Down()
     {
         var para = this.ParaDictGET();
@@ -41,11 +40,19 @@ class DownloadFileApi : ApiBase
                 string file = Path.Combine(FileDir, name);
                 if (System.IO.File.Exists(file))
                 {
-                    await this.File(file, "application/octet-stream",name);
+                    await this.File(file, "application/octet-stream", name);
                     return;
                 }
             }
         }
         await this.Json(new { errcode = 501 });
+    }
+
+    [HTTPGET]
+    public async Task Message()
+    {
+        string msgFile = Path.Combine(FileDir, "message.txt");
+        string msg = System.IO.File.ReadAllText(msgFile);
+        await this.Text(msg);
     }
 }

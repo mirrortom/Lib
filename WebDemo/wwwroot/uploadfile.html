@@ -49,6 +49,11 @@
     <hr class="line" />
   </div>
   <div class="pd-15">
+    <h2>获取message.txt文件内容,显示在文本框中</h2>
+    <textarea id="msgFromPC" class="textarea"></textarea>
+    <m-btn id="getMsgFromPcBtn" class="d-block green">获取</m-btn>
+  </div>
+  <div class="pd-15">
     <h2>从PC上下载文件,提前放在目录tophone_dir,名字不能有空格)</h2>
     <div class="layout-hw" id="downloadFiles"></div>
   </div>
@@ -210,6 +215,7 @@
     })(window);
 
     (async (win) => {
+      // 提供pc上的文件下载
       try {
         let data = await $.postAsync('/downloadFile/index');
         let html = '';
@@ -224,6 +230,19 @@
         $('#downloadFiles').html(html);
       } catch (err) {
 
+      }
+    })(window);
+
+    ((win) => {
+      // 从PC上获取message.txt文件里的内容
+      $('#getMsgFromPcBtn')[0].onclick = async () => {
+        $('#msgFromPC').val('');
+        try {
+          let txt = await $.getAsync('/downloadFile/message');
+          $('#msgFromPC').val(txt);
+        } catch (e) {
+
+        }
       }
     })(window);
   </script>
