@@ -44,12 +44,15 @@ public static class CfgHelp
         string[] kvarr = txt.Split(Environment.NewLine);
         foreach (var item in kvarr)
         {
-            string tmp = item.Trim();
+            string tmp = item;
             if (tmp.StartsWith('#')) continue;
-            if (string.IsNullOrEmpty(tmp)) continue;
-            string[] kv = item.Split('=');
-            if (kv.Length != 2) continue;
-            obj.Add(kv[0].Trim(), kv[1].Trim().Trim('"'));
+            if (string.IsNullOrWhiteSpace(tmp)) continue;
+            int splitChar = tmp.IndexOf('=');
+            if (splitChar == -1) continue;
+            //
+            string k = tmp[..splitChar];
+            String v = tmp[++splitChar..];
+            obj.Add(k.Trim(), v.Trim('"').Trim());
         }
         return obj;
     }
