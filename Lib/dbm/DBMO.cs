@@ -4,7 +4,7 @@ using System.Data.Common;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-
+using dbLog = Lib.NLogHelp;
 namespace Lib.dbm;
 
 /// <summary>
@@ -48,43 +48,48 @@ abstract public class DBMO
     protected DbTransaction tran;
 
     /// <summary>
+    /// 是否在事务中执行.标识
+    /// </summary>
+    private bool inTran = false;
+    /// <summary>
     /// 表示异常信息
     /// </summary>
     private string message;
 
     #endregion
 
-    #region 建立与关闭链接
+    #region 属性,外部调用
+    /// <summary>
+    /// 记录执行日志(sql和参数),默认只有出错时才记录
+    /// </summary>
+    public bool OpenLog { get; set; } = false;
+    /// <summary>
+    /// 每个执行的sql可以有一个日志id号.指示这个执行是属于一个以该guid为编号的业务流程的.
+    /// 可以用guid,默认为空字符串
+    /// </summary>
+    public string LogOrder { get; set; } = string.Empty;
+    #endregion
+
+    #region 开启与关闭数据库连接
 
     /// <summary>
     /// 打开一个连接
-    /// 开启事物方法调用本方法时,要传入true
     /// </summary>
-    protected void OpenDB(bool isTranStart = false)
+    private void OpenDB()
     {
-        try
+        // 建立链接对象,打开连接
+        this.ConnInstance();
+        this.conn.ConnectionString = this.connString;
+        this.conn.Open();
+        // 命令装载到这个连接
+        this.cmd.Connection = this.conn;
+        // 如果有事务,命令在事务中执行
+        if (this.inTran == true)
         {
-            if (this.tran == null)
-            {
-                // 建立链接对象,打开连接
-                this.ConnInstance();
-                this.conn.ConnectionString = this.connString;
-                this.conn.Open();
-                // 将命令适用于此连接
-                if (!isTranStart)
-                    this.cmd.Connection = this.conn;
-            }
-            else
-            {
-                // 将命令适用于此连接
-                this.cmd.Connection = this.conn;
-                // 事务用于此
-                this.cmd.Transaction = this.tran;
-            }
-        }
-        catch (Exception e)
-        {
-            NLogHelp.DBLog(e.Message);
+            // 事务开启时,首次执行命令会建立过事务对象
+            this.tran ??= this.conn.BeginTransaction();
+            // 命令装载到这个事务
+            this.cmd.Transaction = this.tran;
         }
     }
     /// <summary>
@@ -93,8 +98,8 @@ abstract public class DBMO
     /// </summary>
     private void CloseDB()
     {
-        // 如果执行有错误,记录日志
-        if (this.message != null)
+        // 如果执行有错误,或者开启了日志,记录日志
+        if (this.message != null || OpenLog == true)
         {
             // 参数对信息
             StringBuilder paras = new();
@@ -102,20 +107,27 @@ abstract public class DBMO
             {
                 paras.Append($"{this.cmd.Parameters[i]}={this.cmd.Parameters[i].Value} | ");
             }
-            NLogHelp.DBLog($"错误信息:{this.message} \r\n SQL语句:[ {this.cmd.CommandText} ]\r\n 参数值:[ {paras} ]");
+            string msg = this.message ?? "Success!";
+            dbLog.DBLog($"提示信息:[{msg}] 任务id:[{this.LogOrder}] {Environment.NewLine}SQL:[{this.cmd.CommandText}]{Environment.NewLine}参数:[{paras}]");
         }
+        // 连接开启时,并且事务关闭时
         if (this.conn != null && this.tran == null)
         {
+            // 释放连接资源
             this.conn.Close();
             this.conn.Dispose();
             this.conn = null;
+            this.cmd.Dispose();
             this.cmd = null;
+            //
+            this.inTran = false;
+            this.LogOrder = default;
             this.message = null;
         }
     }
     #endregion
 
-    #region 执行查询
+    #region 执行查询,外部调用
     /// <summary>
     /// 执行查询[数组式参数] [字典数组式结果集],字段名是键.无值或出错返回null
     /// <para>参数占位标记的顺序和参数数组元素顺序保持一致</para>
@@ -124,8 +136,7 @@ abstract public class DBMO
     /// </summary>
     public Dictionary<string, object>[] ExecuteQuery(string sql, params object[] paras)
     {
-        this.InItCmd(sql, paras);
-        return this.Select();
+        return this.InItCmd(sql, paras) ? this.Select() : null;
     }
     /// <summary>
     /// 执行查询[字典式参数] [字典数组式结果集],字段名是键.无值或出错返回null
@@ -133,46 +144,41 @@ abstract public class DBMO
     /// </summary>
     public Dictionary<string, object>[] ExecuteQuery(string sql, Dictionary<string, object> parasdict)
     {
-        this.InItCmd(sql, parasdict);
-        return this.Select();
+        return this.InItCmd(sql, parasdict) ? this.Select() : null;
     }
 
     /// <summary>
     /// 执行查询[对象式参数] [字典数组式结果集],字段名是键.无值或出错返回null
-    /// <para>sql参数值对象Q,参数对象的属性或者成员名称必须和参数名字一样,大小写不限.</para>
+    /// <para>sql参数值对象P,参数对象的属性或者成员名称必须和参数名字一样,大小写不限.</para>
     /// </summary>
-    public Dictionary<string, object>[] ExecuteQuery<Q>(string sql, Q paraentity)
+    public Dictionary<string, object>[] ExecuteQuery<P>(string sql, P paraEntity)
     {
-        this.InItCmd<Q>(sql, paraentity);
-        return this.Select();
+        return this.InItCmd<P>(sql, paraEntity) ? this.Select() : null;
     }
 
     /// <summary>
     /// 执行查询[数组式参数] [实体对象数组式结果集],没有值返回null
-    /// <para>T类型是实体对象,成员或属性名与查询语句字段的别名一样,大小写不限.C#默认构造函数和字段值</para>
+    /// <para>E类型是实体对象,成员或属性名与查询语句字段的别名一样,大小写不限.C#默认构造函数和字段值</para>
     /// <para>如果对应字段的数据值是DBNULL,那么T的该字段/属性将设置C#系统默认值.</para>
     /// </summary>
-    public T[] ExecuteQuery<T>(string sql, params object[] paras) where T : new()
+    public E[] ExecuteQuery<E>(string sql, params object[] paras) where E : new()
     {
-        this.InItCmd(sql, paras);
-        return this.Select<T>();
+        return this.InItCmd(sql, paras) ? this.Select<E>() : null;
     }
     /// <summary>
     /// 执行查询[字典式参数] [实体对象数组式结果集],没有值返回null
     /// </summary>
-    public T[] ExecuteQuery<T>(string sql, Dictionary<string, object> parasdict) where T : new()
+    public E[] ExecuteQuery<E>(string sql, Dictionary<string, object> parasdict) where E : new()
     {
-        this.InItCmd(sql, parasdict);
-        return this.Select<T>();
+        return this.InItCmd(sql, parasdict) ? this.Select<E>() : null;
     }
     /// <summary>
     /// 执行查询[对象式参数] [实体对象数组式结果集],没有值返回null
-    /// <para>sql参数值对象Q,参数对象的属性或者成员名称必须和参数名字一样,大小写不限.</para>
+    /// <para>sql参数值对象P,参数对象的属性或者成员名称必须和参数名字一样,大小写不限.</para>
     /// </summary>
-    public T[] ExecuteQuery<T, Q>(string sql, Q paraentity) where T : new()
+    public E[] ExecuteQuery<E, P>(string sql, P paraentity) where E : new()
     {
-        this.InItCmd<Q>(sql, paraentity);
-        return this.Select<T>();
+        return this.InItCmd<P>(sql, paraentity) ? this.Select<E>() : null;
     }
 
     /// <summary>
@@ -180,8 +186,7 @@ abstract public class DBMO
     /// </summary>
     public object ExecuteScalar(string sql, params object[] paras)
     {
-        this.InItCmd(sql, paras);
-        return this.SelectScalar();
+        return this.InItCmd(sql, paras) ? this.SelectScalar() : null;
     }
 
     /// <summary>
@@ -189,26 +194,23 @@ abstract public class DBMO
     /// </summary>
     public object ExecuteScalar(string sql, Dictionary<string, object> parasdict)
     {
-        this.InItCmd(sql, parasdict);
-        return this.SelectScalar();
+        return this.InItCmd(sql, parasdict) ? this.SelectScalar() : null;
     }
 
     /// <summary>
     /// 执行查询[对象式参数] [单一结果值],无值或发生异常都返回null
     /// </summary>
-    public object ExecuteScalar<Q>(string sql, Q paraentity)
+    public object ExecuteScalar<P>(string sql, P paraentity)
     {
-        this.InItCmd<Q>(sql, paraentity);
-        return this.SelectScalar();
+        return this.InItCmd<P>(sql, paraentity) ? this.SelectScalar() : null;
     }
 
     /// <summary>
-    /// 执行非查询[数组式参数],返回受影响的行数,发生异常返回-999
+    /// 执行非查询[数组式参数],返回受影响的行数,发生错误返回-999
     /// </summary>
     public int ExecuteNoQuery(string sql, params object[] paras)
     {
-        this.InItCmd(sql, paras);
-        return this.SelectNon();
+        return this.InItCmd(sql, paras) ? this.SelectNon() : -999;
     }
 
     /// <summary>
@@ -216,17 +218,15 @@ abstract public class DBMO
     /// </summary>
     public int ExecuteNoQuery(string sql, Dictionary<string, object> parasdict)
     {
-        this.InItCmd(sql, parasdict);
-        return this.SelectNon();
+        return this.InItCmd(sql, parasdict) ? this.SelectNon() : -999;
     }
 
     /// <summary>
     /// 执行非查询[对象式参数],返回受影响的行数,发生异常返回-999
     /// </summary>
-    public int ExecuteNoQuery<Q>(string sql, Q paraentity)
+    public int ExecuteNoQuery<P>(string sql, P paraentity)
     {
-        this.InItCmd<Q>(sql, paraentity);
-        return this.SelectNon();
+        return this.InItCmd<P>(sql, paraentity) ? this.SelectNon() : -999;
     }
 
     /// <summary>
@@ -237,8 +237,8 @@ abstract public class DBMO
     public int Insert(string sqlhalf, params object[] paras)
     {
         string sql = DBMO.AutoCmptInsertSql(sqlhalf, this.paraPrefixChar);
-        this.InItCmd(sql, paras);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd(sql, paras) ? this.SelectNon() : -999;
     }
 
     /// <summary>
@@ -247,18 +247,18 @@ abstract public class DBMO
     public int Insert(string insertHalf, Dictionary<string, object> parasdict)
     {
         string sql = DBMO.AutoCmptInsertSql(insertHalf, this.paraPrefixChar);
-        this.InItCmd(sql, parasdict);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd(sql, parasdict) ? this.SelectNon() : -999;
     }
 
     /// <summary>
     /// 执行INSERT[对象式参数],返回受影响行数,发生异常返回-999
     /// </summary>
-    public int Insert<Q>(string insertHalf, Q paraentity)
+    public int Insert<P>(string insertHalf, P paraentity)
     {
         string sql = DBMO.AutoCmptInsertSql(insertHalf, this.paraPrefixChar);
-        this.InItCmd<Q>(sql, paraentity);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd<P>(sql, paraentity) ? this.SelectNon() : -999;
     }
 
     /// <summary>
@@ -269,8 +269,8 @@ abstract public class DBMO
     public int Update(string sqlhalf, params object[] paras)
     {
         string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
-        this.InItCmd(sql, paras);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd(sql, paras) ? this.SelectNon() : -999;
     }
     /// <summary>
     /// 执行UPDATE[字典式参数],返回受影响行数,发生异常返回-999
@@ -278,66 +278,54 @@ abstract public class DBMO
     public int Update(string sqlhalf, Dictionary<string, object> parasdict)
     {
         string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
-        this.InItCmd(sql, parasdict);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd(sql, parasdict) ? this.SelectNon() : -999;
     }
     /// <summary>
     /// 执行UPDATE[对象式参数],返回受影响行数,发生异常返回-999
     /// </summary>
     /// <returns></returns>
-    public int Update<Q>(string sqlhalf, Q paraentity)
+    public int Update<P>(string sqlhalf, P paraentity)
     {
         string sql = DBMO.AutoCmptUpdateSql(sqlhalf, this.paraPrefixChar);
-        this.InItCmd<Q>(sql, paraentity);
-        return this.SelectNon();
+        if (sql == null) return -999;
+        return this.InItCmd<P>(sql, paraentity) ? this.SelectNon() : -999;
     }
     #endregion
 
     #region 执行存储过程
 
     /// <summary>
-    /// 执行存储过程.返回受影响行数,异常返回-999
-    /// <para>0.过程名 1.输入参数字典 2.输出参数字典 3.输出参数结果值字典引用 </para>
-    /// <para>由于各数据库存储过程参数命名方式不同,注意参数名字与字典键名对应关系.</para>
-    /// <para>出参字典的int值是数据字段类型,枚举形式,为了方法统一适用,改为int.传值例子:</para>
-    /// <para> (int)MySql.Data.MySqlClient.MySqlDbType.Int32 </para>
+    /// 执行存储过程.返回受影响行数.异常返回-999
+    /// proc:过程名 paradict:输入参数字典 outparadict:输出参数字典 outparavaluedict:输出参数结果值字典引用
+    /// <para>出参(out参数)字典的int值是数据表字段类型的枚举值,为了方法统一适用,都转为int.比如:(int)MySql.Data.MySqlClient.MySqlDbType.Int32,使用时查表对应枚举类型的值,直接传int值.</para>
     /// </summary>
+    /// <param name="proc">过程名sql</param>
+    /// <param name="paradict">输入参数字典</param>
+    /// <param name="outparadict">输出参数字典</param>
+    /// <param name="outparavaluedict">输出参数结果值字典引用</param>
+    /// <returns></returns>
     public int ExecuteProcedure(string proc, Dictionary<string, object> paradict,
         Dictionary<string, int> outparadict, out Dictionary<string, object> outparavaluedict)
     {
         // 初始化命令
         this.InItCmdProc(proc, paradict, outparadict);
-        outparavaluedict = new();
+        outparavaluedict = [];
         return this.Procedure(outparavaluedict);
     }
 
     #endregion
 
-    #region 执行事务
+    #region 事务初始化和执行
     // 开始事务方法和提交事务方法.如果需要在事务中进行,应先调用此方法,最后调用提交事务
 
     /// <summary>
-    /// 开始一个事务,成功返回真(该操作不会关闭数据库连接,请在后续使用"提交"或者"回滚")
+    /// 打开一个事务,成功返回真(该操作不会关闭数据库连接,请在后续使用"提交"或者"回滚").
+    /// 执行这个方法后,做了一个要使用事务的标志,但没有真的打开事务.在命令执行前才会打开事务.
     /// </summary>
-    public bool BeginTransaction()
+    public void BeginTransaction()
     {
-        try
-        {
-            this.OpenDB(true);
-            this.tran = this.conn.BeginTransaction();
-            return true;
-        }
-        catch (Exception e)
-        {
-            this.message = e.Message;
-            return false;
-        }
-        finally
-        {
-            // 记录事务日志
-            if (this.message != null)
-                NLogHelp.DBLog(this.message);
-        }
+        this.inTran = true;
     }
     /// <summary>
     /// 回滚一个事务.在执行不达预期时可调用此方法撤回执行.(完成后数据连接会关闭)
@@ -390,64 +378,66 @@ abstract public class DBMO
 
     #region sql命令和参数初始化 [内部方法]
 
-    // 新建SqlCommand对象1.设置为当前连接对象2.如果有参数则加入参数3.如果有事务则设定到事务中
     // 1.数组参数:sql语句中的参数占位变量与参数值数组按位置一一对应,例如参数 @a,@b,参数数组值
     //   ["vala","valb"],那么@a对应vala,@b对应valb.
     // 2.对象参数:sql语句中的参数名字(去掉@或者:参数名字前缀),与参数值对象字段或者属性名对应
     //   例如参数 @a,@b,参数对象值 {a=1,b=2},那么@a对应1,@b对应2
     // 3.字典参数:与对象参数类似,sql语句中的参数名字与字典参数值的键名对应
     //   例如参数@a,@b,字典参数值{a:"a",b:"b"},那么@a对应"a",@b对应"b"
+    // 4.存储过程的输入输出参数,只支持字典参数
 
     /// <summary>
-    /// 初始化命令,添加参数.[数组式参数]
+    /// 初始化命令,添加参数.[数组式参数],失败返回false,并记录日志
     /// <para>参数1:查询语句</para>
     /// <para>参数2:参数值数组.长度不能少于参数个数</para>
     /// </summary>
-    private void InItCmd(string sql, object[] paras)
+    private bool InItCmd(string sql, object[] paras)
     {
-        this.CmdInstance(sql);
+        string[] paraNames = NewCmdAndParseParaNames(sql);
+        if (paraNames.Length == 0) return true;
 
-        // 匹配出在SQL语句中的参数名,然后以找到的参数名个数加入相应个数的值.
-        MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
-        if (paraNames.Count == 0) return;
-        // 参数不够异常掉
-        if (paraNames.Count > paras.Length)
+        // 参数个数少于占位符个数
+        if (paraNames.Length > paras.Length)
         {
-            throw new Exception($"数组参数少于参数占位符.[sql语句: {sql}]");
+            dbLog.DBLog($"错误!数组参数个数少于参数占位符!SQL: [{sql}]");
+            return false;
         }
-        for (int i = 0; i < paraNames.Count; i++)
+        for (int i = 0; i < paraNames.Length; i++)
         {
-            DbParameter para = this.ParaInstance(paraNames[i].Value, paras[i]);
-            this.cmd.Parameters.Add(para);
+            NewParaAddCmd(paraNames[i], paras[i]);
         }
+        return true;
     }
+
     /// <summary>
     /// 初始化命令,添加参数.[字典式参数]
     /// <para>参数1:查询语句</para>
     /// <para>参数2:参数值字典</para>
     /// </summary>
-    private void InItCmd(string sql, Dictionary<string, object> parasdict)
+    private bool InItCmd(string sql, Dictionary<string, object> parasdict)
     {
-        this.CmdInstance(sql);
+        string[] paraNames = NewCmdAndParseParaNames(sql);
+        if (paraNames.Length == 0) return true;
 
-        MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
-        if (paraNames.Count == 0) return;
-        if (parasdict == null || paraNames.Count > parasdict.Count)
+        if (parasdict == null || paraNames.Length > parasdict.Count)
         {
-            throw new Exception($"字典参数值少于参数占位符.[sql语句: {sql}]");
+            dbLog.DBLog($"错误!字典参数值个数少于参数占位符!SQL: [{sql}]");
+            return false;
         }
-        for (int i = 0; i < paraNames.Count; i++)
+        for (int i = 0; i < paraNames.Length; i++)
         {
-            string parakey = paraNames[i].Value[1..];
+            string nameItem = paraNames[i];
+            string key = paraNames[i][1..];
             // 如果参数字典里有对应参数名字的成员,则加入参数.
-            if (parasdict.ContainsKey(parakey))
+            if (parasdict.TryGetValue(key, out object value))
             {
-                DbParameter para = this.ParaInstance(paraNames[i].Value, parasdict[parakey]);
-                this.cmd.Parameters.Add(para);
+                NewParaAddCmd(nameItem, value);
                 continue;
             }
-            throw new Exception($"参数占位符 [{paraNames[i]}] 未提供值.[sql语句: {sql}]");
+            dbLog.DBLog($"错误!字典参数占位符 [{nameItem}] 未提供值!SQL: [{sql}]");
+            return false;
         }
+        return true;
     }
     /// <summary>
     /// 初始化命令,添加参数.[对象式参数]
@@ -456,43 +446,74 @@ abstract public class DBMO
     /// <para>参数1:查询语句</para>
     /// <para>参数2:对象实例,该实例有与参数名匹配的字段/属性,并且已赋值.</para>
     /// </summary>
-    private void InItCmd<Q>(string sql, Q entity)
+    private bool InItCmd<P>(string sql, P paraEntity)
     {
-        this.CmdInstance(sql);
-
-        // 匹配出参数名后得到参数集合,使用该集合匹配对象中的属性,找到则赋值否则忽略(参数命名:字母开头可包含数字和下划线)
-        MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
-        if (paraNames.Count == 0) return;
-        if (entity == null)
+        string[] paraNames = NewCmdAndParseParaNames(sql);
+        if (paraNames.Length == 0) return true;
+        if (paraEntity == null)
         {
-            throw new Exception($"对象参数值是null.[sql语句: {sql}]");
+            dbLog.DBLog($"错误!实体参数对象不能是null!SQL: [{sql}]");
+            return false;
         }
 
-        for (int i = 0; i < paraNames.Count; i++)
+        for (int i = 0, len = paraNames.Length; i < len; i++)
         {
-            string nameItem = paraNames[i].Value;
-            object paraVal;
-            FieldInfo f = DBMO.FieldScan<Q>(nameItem[1..], entity);
-            if (f != null)
+            string nameItem = paraNames[i];
+            string memberName = nameItem[1..];
+            object paraVal = null;
+            // 先找成员
+            bool hasMember = DBMO.FieldScan<P>(memberName, paraEntity, (field) =>
             {
-                paraVal = f.GetValue(entity);
-            }
-            else
+                paraVal = field.GetValue(paraEntity);
+            });
+            // 再找属性
+            if (hasMember == false)
             {
-                PropertyInfo p = DBMO.PropScan<Q>(nameItem[1..], entity);
-                if (p != null)
-                    paraVal = p.GetValue(entity);
-                else
-                    throw new Exception($"参数占位符 [{paraNames[i]}] 未提供值.[sql语句: {sql}]");
+                hasMember = DBMO.PropScan<P>(memberName, paraEntity, (prop) =>
+                {
+                    paraVal = prop.GetValue(paraEntity);
+                });
             }
-            DbParameter para = this.ParaInstance(nameItem, paraVal);
-            this.cmd.Parameters.Add(para);
+            if (hasMember == false)
+            {
+                dbLog.DBLog($"错误!实体对象参数占位符 [{nameItem}] 未提供值!SQL: [{sql}]");
+                return false;
+            }
+            NewParaAddCmd(nameItem, paraVal);
         }
+        return true;
     }
 
+    /// <summary>
+    /// 初始化命令对象,分析sql语句,返回参数占位名字数组,如果没有参数,返回空数组.
+    /// </summary>
+    /// <param name="sql"></param>
+    /// <returns></returns>
+    private string[] NewCmdAndParseParaNames(string sql)
+    {
+        this.CmdInstance(sql);
+        // 匹配出参数名后得到参数集合,使用该集合匹配对象中的属性,找到则赋值否则忽略(参数命名:字母开头可包含数字和下划线)
+        MatchCollection paraNames = Regex.Matches(sql, this.paraRege);
+        string[] names = new string[paraNames.Count];
+        for (int i = 0, len = names.Length; i < len; i++)
+        {
+            names[i] = paraNames[i].Value;
+        }
+        return names;
+    }
+    /// <summary>
+    /// 初始化参数对象,然后添加到命令
+    /// </summary>
+    /// <param name="nameItem"></param>
+    /// <param name="paraVal"></param>
+    private void NewParaAddCmd(string nameItem, object paraVal)
+    {
+        DbParameter para = this.ParaInstance(nameItem, paraVal);
+        this.cmd.Parameters.Add(para);
+    }
 
     /// <summary>
-    /// 初始化命令,添加参数.为了存储过程
+    /// 初始化命令,添加参数.为存储过程
     /// <para>parasdict为入参(in),outparasdict为出参(out).无参数时传null</para>
     /// </summary>
     private void InItCmdProc(string proc, Dictionary<string, object> parasdict,
@@ -520,6 +541,9 @@ abstract public class DBMO
         }
     }
 
+
+    // 以下抽象辅助方法由具体数据库对象类实现
+
     /// <summary>
     /// 辅助方法: 实例化db DbConnection对象
     /// </summary>
@@ -544,7 +568,7 @@ abstract public class DBMO
     #endregion
 
     #region 执行增删改查存储过程 [内部方法]
-    // 实际干活的方法(1.结果集查询 2.非查询 3.标量查询 4.存储过程 )
+    // 实际干活的方法(1.结果集查询(2种类型结果) 2.非查询 3.标量查询 4.存储过程 )
 
     /// <summary>
     /// 执行查询,返回字典数组查询结果.
@@ -555,27 +579,12 @@ abstract public class DBMO
         try
         {
             this.OpenDB();
-            using DbDataReader dr = this.cmd.ExecuteReader();
-            if (dr.HasRows)
-            {
-                List<Dictionary<string, object>> re = new();
-                while (dr.Read())
-                {
-                    Dictionary<string, object> tmp = new();
-                    for (int i = 0; i < dr.FieldCount; i++)
-                    {
-                        tmp.Add(dr.GetName(i), dr[i]);
-                    }
-                    re.Add(tmp);
-                }
-                return re.ToArray();
-            }
-            else
-                return null;
+            var data = this.ExecReader();
+            return data == null ? null : [.. data];
         }
         catch (Exception e)
         {
-            this.message = e.Message;
+            this.message = e.ToString();
             return null;
         }
         finally
@@ -585,54 +594,52 @@ abstract public class DBMO
     }
 
     /// <summary>
-    /// 执行查询,生成对象集合
-    /// <para>T类型是一个实体对象,字段或属性名字与表字段名字对应.C#默认构造函数和字段值</para>
-    /// <para>如果对应字段的数据值是DBNULL,那么T的该字段/属性将设置C#默认值.</para>
+    /// 执行查询,生成强类型对象集合
+    /// <para>E类型是一个实体对象,字段或属性名字与表字段名字对应.C#默认构造函数和字段值</para>
+    /// <para>如果对应字段的数据值是DBNULL,那么E的该字段/属性将设置C#默认值.</para>
     /// </summary>
-    private T[] Select<T>() where T : new()
+    private E[] Select<E>() where E : new()
     {
         try
         {
             this.OpenDB();
-            using DbDataReader dr = this.cmd.ExecuteReader();
-            if (dr.HasRows)
-            {
-                List<T> redatalist = new();
-                while (dr.Read())
-                {
-                    // 创建一个实例
-                    T tmp = new();
-                    // 循环当行数据行的所有字段
-                    for (int i = 0; i < dr.FieldCount; i++)
-                    {
-                        string name = dr.GetName(i);
-                        // 优先查成员
-                        FieldInfo field = DBMO.FieldScan<T>(name, tmp);
-                        if (field != null)
-                        {
-                            field.SetValue(tmp, Convert.IsDBNull(dr[i])
-                                 ? default : Convert.ChangeType(dr[i], field.FieldType));
-                            continue;
-                        }
-                        // 再属性
-                        PropertyInfo prop = DBMO.PropScan<T>(name, tmp);
-                        if (prop != null)
-                        {
-                            prop.SetValue(tmp, Convert.IsDBNull(dr[i])
-                                 ? default : Convert.ChangeType(dr[i], prop.PropertyType));
-                        }
-                        // 成员和属性都没有,无法设置,数据值丢弃
-                    }
-                    redatalist.Add(tmp);
-                }
-                return redatalist.ToArray();
-            }
-            else
+            var data = this.ExecReader();
+            if (data == null)
                 return null;
+            List<E> redatalist = [];
+            // 数据行
+            for (int rowIndex = 0, len = data.Length; rowIndex < len; rowIndex++)
+            {
+                var row = data[rowIndex];
+                // 创建一个实例
+                E tmp = new();
+                // 循环当行数据行的所有字段
+                foreach (string k in row.Keys)
+                {
+                    // 优先查成员
+                    bool hasMember = DBMO.FieldScan<E>(k, tmp, (field) =>
+                    {
+                        field.SetValue(tmp, Convert.IsDBNull(row[k])
+                             ? default : Convert.ChangeType(row[k], field.FieldType));
+                    });
+                    if (hasMember == true)
+                        continue;
+                    // 再属性
+                    DBMO.PropScan<E>(k, tmp, (prop) =>
+                    {
+                        prop.SetValue(tmp, Convert.IsDBNull(row[k])
+                                 ? default : Convert.ChangeType(row[k], prop.PropertyType));
+                    });
+                    // 成员和属性都没有,不设置,数据值丢弃
+                }
+                redatalist.Add(tmp);
+            }
+            return [.. redatalist];
+
         }
         catch (Exception e)
         {
-            this.message = e.Message;
+            this.message = e.ToString();
             return null;
         }
         finally
@@ -640,7 +647,26 @@ abstract public class DBMO
             this.CloseDB();
         }
     }
-
+    /// <summary>
+    /// 执行查询,结果集(类内部实际干活方法)
+    /// </summary>
+    private Dictionary<string, object>[] ExecReader()
+    {
+        using DbDataReader dr = this.cmd.ExecuteReader();
+        if (!dr.HasRows)
+            return null;
+        List<Dictionary<string, object>> re = [];
+        while (dr.Read())
+        {
+            Dictionary<string, object> tmp = [];
+            for (int i = 0; i < dr.FieldCount; i++)
+            {
+                tmp.Add(dr.GetName(i), dr[i]);
+            }
+            re.Add(tmp);
+        }
+        return [.. re];
+    }
     /// <summary>
     /// 执行非查询,返回受影响行数(类内部实际干活方法)
     /// </summary>
@@ -653,7 +679,7 @@ abstract public class DBMO
         }
         catch (Exception e)
         {
-            this.message = e.Message;
+            this.message = e.ToString();
             return -999;
         }
         finally
@@ -663,7 +689,7 @@ abstract public class DBMO
     }
 
     /// <summary>
-    /// 执行一个标量查询 如果异常或者未查询到值都返回 null;(内部干活方法)
+    /// 执行一个标量查询 如果异常或者值是dbNULL都返回 null;
     /// </summary>
     private object SelectScalar()
     {
@@ -679,7 +705,7 @@ abstract public class DBMO
         }
         catch (Exception e)
         {
-            this.message = e.Message;
+            this.message = e.ToString();
             return null;
         }
         finally
@@ -689,8 +715,7 @@ abstract public class DBMO
     }
 
     /// <summary>
-    /// 执行存储过程 异常返回-999;
-    /// <para>参数outparasdict: 字典实例.方法成功执行之后,字典会包含输出参数键值对.以输出参数名字为键名</para>
+    /// 参数outparasdict: 字典实例.方法成功执行之后,字典会包含输出参数键值对.以输出参数名字为键名
     /// </summary>
     private int Procedure(Dictionary<string, object> outparasdict)
     {
@@ -714,7 +739,7 @@ abstract public class DBMO
         }
         catch (Exception e)
         {
-            this.message = e.Message;
+            this.message = e.ToString();
             return -999;
         }
         finally
@@ -728,29 +753,33 @@ abstract public class DBMO
     #region 其它辅助方法
 
     /// <summary>
-    /// 扫描实体类的指定名字public字段,返回字段对象.没找到返回null
+    /// 扫描实体类的指定名字public字段,并且执行一个方法.没找到字段返回false,方法不执行.
     /// <para>name 字段/属性名字,不区分大小写</para>
     /// </summary>
-    private static FieldInfo FieldScan<T>(string name, T entity)
+    private static bool FieldScan<T>(string name, T entity, Action<FieldInfo> action)
     {
         FieldInfo field = entity.GetType().GetField(name,
                 BindingFlags.Public |
                 BindingFlags.Instance |
                 BindingFlags.IgnoreCase);
-        return field;
+        if (field == null) return false;
+        action(field);
+        return true;
     }
 
     /// <summary>
-    /// 扫描实体类的指定名字public属性,返回属性对象.没找到返回null
+    /// 扫描实体类的指定名字public属性,并且执行一个方法.没找到属性返回false,方法不执行.
     /// <para>name 属性名字,不区分大小写</para>
     /// </summary>
-    private static PropertyInfo PropScan<T>(string name, T entity)
+    private static bool PropScan<T>(string name, T entity, Action<PropertyInfo> action)
     {
         PropertyInfo prop = entity.GetType().GetProperty(name,
         BindingFlags.Public |
                 BindingFlags.Instance |
                 BindingFlags.IgnoreCase);
-        return prop;
+        if (prop == null) return false;
+        action(prop);
+        return true;
     }
 
     /// <summary>
@@ -761,6 +790,7 @@ abstract public class DBMO
     private static string AutoCmptInsertSql(string insertSql, char prefixChar)
     {
         string[] colarr = DBMO.FindSqlFieldPart(insertSql);
+        if (colarr == null) return null;
         StringBuilder sqlpart = new();
         foreach (var item in colarr)
         {
@@ -779,13 +809,14 @@ abstract public class DBMO
         int sindex = updateSql.IndexOf('(');
         int eindex = updateSql.IndexOf(')');
         string[] colarr = DBMO.FindSqlFieldPart(updateSql);
+        if (colarr == null) return null;
         StringBuilder sqlpart = new();
         foreach (var item in colarr)
         {
             sqlpart.Append($"{item}={prefixChar}{item.Trim('[', ']')},");
         }
         // 以括号为分界点,前面0-sindex部分是update table 中间是拼成的col=@col eindex-最后,是where部分
-        return $"{updateSql.Substring(0, sindex).Trim()} SET {sqlpart.ToString().TrimEnd(',')} {updateSql.Substring(eindex + 1).Trim()}";
+        return $"{updateSql[..sindex].Trim()} SET {sqlpart.ToString().TrimEnd(',')} {updateSql[(eindex + 1)..].Trim()}";
     }
 
     /// <summary>
@@ -801,7 +832,10 @@ abstract public class DBMO
         int sindex = sqlStr.IndexOf('(');
         int eindex = sqlStr.IndexOf(')');
         if (sindex == -1 || eindex == -1)
-            throw new Exception($"请检查update/insert语句是否缺少左右括号:{sqlStr}");
+        {
+            dbLog.DBLog($"请检查update/insert语句是否缺少左右括号:{sqlStr}");
+            return null;
+        }
         string cols = sqlStr.Substring(sindex + 1, eindex - sindex - 1);
         // 去掉空白
         cols = Regex.Replace(cols, @"\s", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
