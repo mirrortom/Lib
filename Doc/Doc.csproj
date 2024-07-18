@@ -40,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="about.html" />
+    <Content Include="db\dbmo.html" />
     <Content Include="db\dicts.html" />
     <Content Include="demo\appconsole.html" />
     <Content Include="index.html" />

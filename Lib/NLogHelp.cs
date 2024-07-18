@@ -16,7 +16,9 @@ public static class NLogHelp
     private static Logger logSrv;
     // 3.输出到文件(用于App,Web,文件夹 AppLog)
     private static Logger log;
-    // 4.输出到控制台(用于测试调试)
+    // 4.输出到文件(用于自定义符号测试时,文件夹 TestLog)
+    private static Logger logTest;
+    // 5.输出到控制台(用于测试调试)
     private static Logger debug;
 
     // 日志格式说明-用于文件
@@ -54,10 +56,10 @@ public static class NLogHelp
             fileFullPath = fileNameTpl.Replace("${basedir}", LogRootPath);
         }
 
-        // 2.初始化3个文件型日志记录器,区别只在于目录设置不同
+        // 2.初始化4个文件型日志记录器,区别只在于目录设置不同
         var cfg = new LoggingConfiguration();
-        string[] logType = { "SrvLog", "DBLog", "AppLog", "Console" };
-        for (int i = 0; i < 3; i++)
+        string[] logType = ["SrvLog", "DBLog", "AppLog", "TestLog"];
+        for (int i = 0; i < 4; i++)
         {
             var target = new FileTarget
             {
@@ -79,7 +81,7 @@ public static class NLogHelp
             cfg.AddRule(LogLevel.Info, LogLevel.Info, target, "*", final: true);
         }
         // 2.1控制台记录器
-        var consoleTarget = new ConsoleTarget(logType[3]);
+        var consoleTarget = new ConsoleTarget("Console");
         consoleTarget.Layout = consoleLayout;
         cfg.AddTarget(consoleTarget);
         cfg.AddRule(LogLevel.Debug, LogLevel.Debug, consoleTarget);
@@ -89,7 +91,8 @@ public static class NLogHelp
         logSrv = LogManager.GetLogger(logType[0]);
         logDB = LogManager.GetLogger(logType[1]);
         log = LogManager.GetLogger(logType[2]);
-        debug = LogManager.GetLogger(logType[3]);
+        logTest = LogManager.GetLogger(logType[3]);
+        debug = LogManager.GetLogger("Console");
     }
 
     public static void SrvLog(string msg)
@@ -108,4 +111,11 @@ public static class NLogHelp
     {
         debug.Debug(msg);
     }
+#if TESTLOG
+    // 用于条件编译,可以根据具体项目修改
+    public static void TestLog(string msg)
+    {
+        logTest.Info(msg);
+    }
+#endif
 }
