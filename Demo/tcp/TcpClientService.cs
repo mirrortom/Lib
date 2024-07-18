@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Text;
 
+using static Demo.tcp.Tool;
 namespace Demo.tcp;
 
 /// <summary>
@@ -15,12 +16,12 @@ public class TcpClientService
     /// <summary>
     /// 默认服务器IP终结点
     /// </summary>
-    private IPAddress iPAddress;
-    private int port;
+    private IPAddress iPAddress=IPAddress.Loopback;
+    private int port=5_0000;
     /// <summary>
     /// 最大客户端连接数
     /// </summary>
-    private int MaxConn;
+    private int MaxConn=100;
     /// <summary>
     /// 连接对象列表
     /// </summary>
@@ -32,7 +33,7 @@ public class TcpClientService
     /// <summary>
     /// 应用程序名字
     /// </summary>
-    private string AppName;
+    private string AppName="Socket Tcp Client Manager";
 
     public TcpClientService(int maxConn = 100)
     {
@@ -68,11 +69,7 @@ public class TcpClientService
 
     private void Init()
     {
-        this.AppName = "TcpClients";
-        this.iPAddress = IPAddress.Parse("127.0.0.1");
-        this.port = 5_0000;
         this.TcpClientWorkers = new List<TcpClientWorker>();
-        this.MaxConn = 100;
         this.IsCancel = false;
     }
 
@@ -246,7 +243,7 @@ public class TcpClientService
         try
         {
             TcpClientWorker worker;
-            string ipport = this.Read();
+            string ipport = Read();
             Print($"建立中...");
             if (!string.IsNullOrWhiteSpace(ipport))
             {
@@ -310,23 +307,4 @@ public class TcpClientService
         Console.Clear();
     }
     #endregion
-
-    #region tool
-    /// <summary>
-    /// Console.ReadLine
-    /// </summary>
-    private string Read()
-    {
-        return Console.ReadLine();
-    }
-
-    /// <summary>
-    /// Console.WriteLine 写的短一点
-    /// </summary>
-    /// <param name="msg"></param>
-    private void Print(string msg)
-    {
-        Console.WriteLine(msg);
-    }
-    #endregion  
 }

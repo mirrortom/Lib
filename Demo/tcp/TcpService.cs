@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using System.Text;
 
+using static Demo.tcp.Tool;
 namespace Demo.tcp;
 
 /// <summary>
@@ -17,18 +18,18 @@ public class TcpService
     /// <summary>
     /// 默认服务器IP终结点
     /// </summary>
-    private IPAddress iPAddress;
-    private int port;
+    private IPAddress iPAddress = IPAddress.Any;
+    private int port = 5_0000;
 
     /// <summary>
-    /// 监听对象
+    /// socket对象
     /// </summary>
-    TcpListener Listener;
+    Socket socket;
 
     /// <summary>
-    /// 最大客户端连接数
+    /// 最大客户端连接数(The maximum length of the pending connections queue)
     /// </summary>
-    private int MaxConn;
+    private int MaxPending = 100;
 
     /// <summary>
     /// 连接对象列表
@@ -41,14 +42,9 @@ public class TcpService
     private bool IsCancel;
 
     /// <summary>
-    /// 令牌 取消检查请求的异步方法
-    /// </summary>
-    /// 
-    private CancellationTokenSource CancelTokenForAcceptTcpClient;
-    /// <summary>
     /// 应用程序名字
     /// </summary>
-    private string AppName;
+    private string AppName = "Socket tcp service demo";
 
     public TcpService()
     {
@@ -65,6 +61,7 @@ public class TcpService
         try
         {
             this.StartListen();
+
             // 开始运行,打印程序信息和菜单
             Print($"[ {this.AppName} ]服务端演示程序已经启动,欢迎使用!");
             this.ShowMenusAction();
@@ -85,43 +82,41 @@ public class TcpService
 
     private void Init()
     {
-        this.AppName = "TcpListener";
-        this.iPAddress = IPAddress.Parse("127.0.0.1");
-        this.port = 5_0000;
         this.TcpWorkers = new List<TcpWorker>();
-        this.MaxConn = 100;
         this.IsCancel = false;
-        this.CancelTokenForAcceptTcpClient = new();
     }
 
-    private async Task StartListen()
+    private Task StartListen()
     {
-        // 监听传入的连接
-        try
+        void listenThread()
         {
-            this.Listener = new(this.iPAddress, this.port);
-            this.Listener.Start();
-            while (!this.IsCancel)
+            // 监听传入的连接
+            try
             {
-                if (this.TcpWorkerCount() >= this.MaxConn)
+                this.socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                this.socket.Bind(new IPEndPoint(this.iPAddress, this.port));
+                this.socket.Listen(this.MaxPending);
+                while (!this.IsCancel)
                 {
-                    Print($"连接已满{this.ClientCountInfo()},不再接受新客户端!");
-                    Thread.Sleep(1000);
-                    continue;
+                    if (this.TcpWorkerCount() >= this.MaxPending)
+                    {
+                        Print($"连接已满{this.ClientCountInfo()},不再接受新客户端!");
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+                    Socket sockClient = this.socket.Accept();
+                    Print($"检测到新连接: {sockClient.RemoteEndPoint}");
+                    TcpWorker work = new(sockClient);
+                    this.TcpWorkers.Add(work);
+
                 }
-                //if (this.Listener.Pending())
-                //{
-                TcpClient client = await this.Listener.AcceptTcpClientAsync(this.CancelTokenForAcceptTcpClient.Token);
-                Print($"检测到新连接: {client.Client.RemoteEndPoint}");
-                TcpWorker work = new(client);
-                this.TcpWorkers.Add(work);
-                //}
+            }
+            catch (Exception e)
+            {
+                Print($"[{this.iPAddress}:{this.port}] 请求监视程序已经取消,引发异常: {e.Message}");
             }
         }
-        catch (Exception e)
-        {
-            Print($"[{this.iPAddress}:{this.port}] 请求监视程序已经取消,引发异常: {e.Message}");
-        }
+        return Task.Factory.StartNew(listenThread);
     }
 
     /// <summary>
@@ -211,8 +206,8 @@ public class TcpService
     private void ServiceInfoAction(params object[] args)
     {
         StringBuilder info = new();
-        info.AppendLine($"地址:\t{this.Listener.LocalEndpoint}");
-        info.AppendLine($"最大连接数:\t{this.MaxConn}");
+        info.AppendLine($"地址:\t{this.socket.LocalEndPoint}");
+        info.AppendLine($"最大连接数:\t{this.MaxPending}");
         info.Append($"客户端已连接数/总数:\t{this.ClientCountInfo()}");
         Print(info.ToString());
     }
@@ -248,10 +243,9 @@ public class TcpService
             item.Close();
         }
         this.TcpWorkers = null;
-        // 取消请求监视 调用令牌信号的取消方法,引发异常后,AcceptTcpClientAsync异步方式取消.
-        this.CancelTokenForAcceptTcpClient.Cancel();
+
         // 关闭监听
-        this.Listener.Stop();
+        this.socket.Close();
         this.IsCancel = true;
         Print($"[ {this.AppName} ]已关闭,感谢使用,bye bye!");
     }
@@ -332,24 +326,4 @@ public class TcpService
         Console.Clear();
     }
     #endregion
-
-    #region tool
-    /// <summary>
-    /// Console.ReadLine
-    /// </summary>
-    private string Read()
-    {
-        return Console.ReadLine();
-    }
-
-    /// <summary>
-    /// Console.WriteLine 写的短一点
-    /// </summary>
-    /// <param name="msg"></param>
-    private void Print(string msg)
-    {
-        Console.WriteLine(msg);
-    }
-    #endregion  
-
 }

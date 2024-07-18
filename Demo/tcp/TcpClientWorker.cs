@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Timers;
 
+using static Demo.tcp.Tool;
 namespace Demo.tcp;
 
 /// <summary>
@@ -10,7 +11,7 @@ namespace Demo.tcp;
 /// </summary>
 internal class TcpClientWorker
 {
-    private readonly TcpClient client;
+    private readonly Socket client;
     /// <summary>
     /// 最大连接时间,秒单位.过时主动关闭,0=不限制
     /// </summary>
@@ -25,7 +26,7 @@ internal class TcpClientWorker
     {
         try
         {
-            this.client = new();
+            this.client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             client.Connect(iP, port);
             this.IsClosed = false;
             this.MaxTime = maxTime;
@@ -67,7 +68,7 @@ internal class TcpClientWorker
     {
         get
         {
-            return this.client.Connected ? this.client.Client.RemoteEndPoint.ToString() : "-";
+            return this.client.Connected ? this.client.RemoteEndPoint.ToString() : "-";
         }
     }
     /// <summary>
@@ -77,7 +78,7 @@ internal class TcpClientWorker
     {
         get
         {
-            return this.client.Connected ? this.client.Client.LocalEndPoint.ToString() : "-";
+            return this.client.Connected ? this.client.LocalEndPoint.ToString() : "-";
         }
     }
     /// <summary>
@@ -115,17 +116,16 @@ internal class TcpClientWorker
             {
                 throw new Exception("连接对象已经关闭!");
             }
-            var stream = this.client.GetStream();
             // 一直等待消息,
             //stream.ReadTimeout = 10_000;
             byte[] buffer = new byte[1024];
-            int lastIndex = stream.Read(buffer, 0, buffer.Length);
+            int len = this.client.Receive(buffer);
             // 如果网络异常或服务端主动关闭了连接,那么会一直收到0长度的消息
-            if (lastIndex == 0)
+            if (len == 0)
             {
                 throw new Exception("服务端关闭了连接!");
             }
-            return (Encoding.UTF8.GetString(buffer, 0, lastIndex), true);
+            return (Encoding.UTF8.GetString(buffer, 0, len), true);
         }
         // 发生错误时,主动关闭连接
         catch (Exception e)
@@ -152,15 +152,14 @@ internal class TcpClientWorker
             {
                 throw new Exception("连接对象已经关闭!");
             }
-            var stream = this.client.GetStream();
-            stream.WriteTimeout = 10_000;
+            this.client.SendTimeout = 10_000;
             byte[] buffer = Encoding.UTF8.GetBytes(send);
             if (buffer.Length > 1024)
             {
                 Print("发送内容不能超过1024字节!");
                 return false;
             }
-            stream.Write(buffer, 0, buffer.Length);
+            this.client.Send(buffer);
             return true;
         }
         // 发生错误时,主动关闭连接
@@ -183,14 +182,5 @@ internal class TcpClientWorker
         this.Timer.Stop();
         // 主动关闭连接中的socket会引发异常 Read()Write()方法会捕获到异常
         this.client.Close();
-    }
-
-    /// <summary>
-    /// Console.WriteLine
-    /// </summary>
-    /// <param name="msg"></param>
-    private void Print(string msg)
-    {
-        Console.WriteLine(msg);
     }
 }
