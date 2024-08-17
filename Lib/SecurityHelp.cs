@@ -69,23 +69,23 @@ public class SecurityHelp
         byte[] data;
         if (type == 0)
         {
-            data = MD5.Create().ComputeHash(buffer);
+            data = MD5.HashData(buffer);
         }
         else if (type == 1)
         {
-            data = SHA1.Create().ComputeHash(buffer);
+            data = SHA1.HashData(buffer);
         }
         else if (type == 2)
         {
-            data = SHA256.Create().ComputeHash(buffer);
+            data = SHA256.HashData(buffer);
         }
         else if (type == 3)
         {
-            data = SHA384.Create().ComputeHash(buffer);
+            data = SHA384.HashData(buffer);
         }
         else if (type == 4)
         {
-            data = SHA512.Create().ComputeHash(buffer);
+            data = SHA512.HashData(buffer);
         }
         else
             return null;
