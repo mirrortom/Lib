@@ -297,13 +297,12 @@ abstract public class DBMO
 
     /// <summary>
     /// 执行存储过程.返回受影响行数.异常返回-999
-    /// proc:过程名 paradict:输入参数字典 outparadict:输出参数字典 outparavaluedict:输出参数结果值字典引用
-    /// <para>出参(out参数)字典的int值是数据表字段类型的枚举值,为了方法统一适用,都转为int.比如:(int)MySql.Data.MySqlClient.MySqlDbType.Int32,使用时查表对应枚举类型的值,直接传int值.</para>
+    /// proc:过程名 paradict:输入参数字典(无值传null) outparadict:输出参数类型字典(无值传null) outparavaluedict:输出参数结果值字典引用(无值传丢弃out _)
     /// </summary>
     /// <param name="proc">过程名sql</param>
-    /// <param name="paradict">输入参数字典</param>
-    /// <param name="outparadict">输出参数字典</param>
-    /// <param name="outparavaluedict">输出参数结果值字典引用</param>
+    /// <param name="paradict">输入参数字典.</param>
+    /// <param name="outparadict">输出参数类型字典,键是参数名,值是类型.值使用int,由对应的库类型转化.比如mysql,(int)MySql.Data.MySqlClient.MySqlDbType.Int32.其它数据库使用对应的类型枚举xxxxDbType</param>
+    /// <param name="outparavaluedict">输出参数结果值字典引用.如果没有输出参数,传舍弃元 out _</param>
     /// <returns></returns>
     public int ExecuteProcedure(string proc, Dictionary<string, object> paradict,
         Dictionary<string, int> outparadict, out Dictionary<string, object> outparavaluedict)
@@ -335,6 +334,9 @@ abstract public class DBMO
     {
         try
         {
+            // 如果开始事务后,没有执行任何操作,然后调用回滚,会报错.this.tran是null
+            // 这里直接返回.
+            if (this.tran == null) return true;
             this.tran.Rollback();
             return true;
         }
@@ -345,7 +347,8 @@ abstract public class DBMO
         }
         finally
         {
-            this.tran.Dispose();
+            if (this.tran != null)
+                this.tran.Dispose();
             this.tran = null;
             this.CloseDB();
         }
@@ -357,6 +360,9 @@ abstract public class DBMO
     {
         try
         {
+            // 如果调用beginTransaction()后,没有执行任何操作,然后调用了commit,
+            // 那么this.tran是null会报错,这里直接返回!
+            if (this.tran == null) return true;
             this.tran.Commit();
             return true;
             //
@@ -369,7 +375,8 @@ abstract public class DBMO
         }
         finally
         {
-            this.tran.Dispose();
+            if (this.tran != null)
+                this.tran.Dispose();
             this.tran = null;
             this.CloseDB();
         }
@@ -732,6 +739,7 @@ abstract public class DBMO
                 var item = this.cmd.Parameters[i];
                 if (item.Direction == System.Data.ParameterDirection.Output)
                 {
+                    // 字典给键赋值时,如果无这个键,会自动加入,不必判断是否有键.
                     outparasdict[item.ParameterName] = item.Value;
                 }
             }
