@@ -9,87 +9,68 @@ using System.Threading.Tasks;
 
 namespace WebDemo;
 
-// 自定义中间件
+// url解析中间件,异常处理中间件
 internal class ApiHandler
 {
     /// <summary>
-    /// 分析url地址然后执行对应的类和方法.(中间件)
+    /// 分析url地址,查找然后执行对应的类和方法.(中间件)
     /// </summary>
-    /// <param name="next"></param>
     /// <returns></returns>
     internal static Task UrlMapMethodMW(HttpContext context)
     {
-        // 程序集名(当前运行此代码的程序集)
-        string assbName = Assembly.GetExecutingAssembly().GetName().Name;
-
         // 分解URL路径用于找类名和方法名
-        string[] urlparts = context.Request.Path.Value.Split('/');
-
-        // 如果路径不合规则,结束请求!合法路径 /api/user/info , /user/name
-        // 如果开启了静态文件,url所在文件没找到时,也会进入这里
-        if (urlparts.Length < 3)
+        var url = ParseUrl(context);
+        if (url.apiCls == null)
         {
-            return ApiHandler.ErrorEnd(context, 5001, $"Url is invalid! [{context.Request.Path.Value}]");
+            return ApiHandler.ErrorEnd(context, 5001, $"Url invalid! [{context.Request.Path.Value}]");
         }
 
-        // 类名和方法名:类名全称是- 程序集名.[命名空间].类名Api(约定后缀)
-        // 命名空间: url拆分后,0位是命名空间,如果只有两段,则没有命名空间(只有当前程序集的默认命名空间)
-        // 后缀约定: 为了统一书写,一个成为api的类,结尾为Api.例如: UserApi
-        string apiClass = "", apiMethod = "";
-        if (urlparts.Length < 4)
+        // 到当前程序集中查找匹配的类
+        var apiType = QueryApiClass(url.apiCls);
+        if (apiType == null)
         {
-            apiClass = $"{assbName}.{urlparts[1]}Api";
-            apiMethod = urlparts[2];
-        }
-        else
-        {
-            apiClass = $"{assbName}.{urlparts[1]}.{urlparts[2]}Api";
-            apiMethod = urlparts[3];
+            return ApiHandler.ErrorEnd(context, 5002, $"No class found,no match or not extend ApiBase. [{url.apiCls}]");
         }
 
-        // 到当前程序集中寻找这个类
-        Type webapiT = Assembly.GetExecutingAssembly().GetType(apiClass, false, true);
-
-        // 未找到该类,结束请求!
-        if (webapiT == null)
+        // 到类中查找匹配的方法.
+        var methods = QueryApiMethod(apiType, url.apiMethod);
+        if (methods == null)
         {
-            return ApiHandler.ErrorEnd(context, 5002, $"Class not found! [{apiClass}]");
+            return ApiHandler.ErrorEnd(context, 5003, $"No match Method found! [{apiType.FullName}.{url.apiMethod}]");
         }
 
-        // 建立实例,再传入HttpContext对象
-        // 继承约定: API类需要继承ApiBase这个基类
-        ApiBase workapi = (ApiBase)Activator.CreateInstance(webapiT, true);
+        // 检查 方法是否有特性
+        var mInfoArr = ApiMethodsFeatureCheck(methods, context.Request.Method.ToUpper());
+        if (mInfoArr.Length == 0)
+        {
+            return ApiHandler.ErrorEnd(context, 5004, $"No method found,feature not match![{apiType.FullName}.{url.apiMethod}]");
+        }
+
+        // 检查 方法返回类型是否为Task
+        mInfoArr = ApiMethodsReTypeCheck(mInfoArr);
+        if (mInfoArr.Length == 0)
+        {
+            return ApiHandler.ErrorEnd(context, 5005, $"No method found,return type not match![{apiType.FullName}.{url.apiMethod}]");
+        }
+
+        // 确定要执行的那一个方法,如果有重载时
+        var apiMInfo = ApiMethodOverloadCheck(mInfoArr);
+        if (apiMInfo.method == null)
+        {
+            return ApiHandler.ErrorEnd(context, 5006, $"No method found,overload not match![{apiType.FullName}.{url.apiMethod}]");
+        }
+
+        // 进行权限检查(对于贴有[AUTH]的类和方法)
+        if (!ApiAuthCheck(context, apiMInfo.method, apiType))
+        {
+            return ApiHandler.ErrorEnd(context, 5007, $"Access Denied,method or class![{apiType.FullName}.{url.apiMethod}]");
+        }
+
+        // 实例化类,设定数据
+        ApiBase workapi = (ApiBase)Activator.CreateInstance(apiType, true);
         workapi.SetHttpContext(context);
 
-        // 到类中寻找方法
-        MethodInfo webapiMethod = webapiT.GetMethods().FirstOrDefault(o => string.Compare(o.Name, apiMethod, true) == 0);
-
-        // 未找到方法,结束请求!
-        if (webapiMethod == null)
-        {
-            return ApiHandler.ErrorEnd(context, 5003, $"Method not found! [{apiClass}.{apiMethod}]");
-        }
-
-        // 检查方法是否贴有特性HTTPPOST/HTTPGET/HTTPALL. 例如[HTTPPOST],只响应POST请求.
-        // 特性约定:做为API的方法需要贴上三个特性中的一个
-        if (!AttributeCheck(context, webapiMethod))
-        {
-            return ApiHandler.ErrorEnd(context, 5004, $"Method not WebApi! [{apiClass}.{apiMethod}]");
-        }
-
-        // 方法返回值必须是Task
-        if (webapiMethod.ReturnType != typeof(Task))
-        {
-            return ApiHandler.ErrorEnd(context, 5005, $"Method return type must Task! [{apiClass}.{apiMethod}]");
-        }
-
-        // 检查类或者方法上是否贴有AUTH特性,有则执行权限判断
-        if (!AuthCheck(context, webapiMethod, webapiT, workapi))
-        {
-            return ApiHandler.ErrorEnd(context, 5006, $"Method Access Denied! [{apiClass}.{apiMethod}]");
-        }
-
-        // webapiMethod返回是Task类型,所以Invoke后得到一个Task,交给框架执行.
+        // UrlMapMethodMW需要返回是Task类型,所以Invoke方法包装为一个Task返回.框架会执行.
         // 不可以将webapiMethod再放到一个Task里,然后返回这个Task,否则就是在多个线程里了.
         // 会遇到的情况: 执行到方法里的第一个await时,框架就认为请求结束了,后面的await会执行,但是异常.
         //              涉嫌在请求结束后,使用HttpContent
@@ -97,7 +78,151 @@ internal class ApiHandler
         // https://learn.microsoft.com/zh-cn/aspnet/core/performance/performance-best-practices?view=aspnetcore-7.0#do-not-access-httpcontext-from-multiple-threads
         // 另外,如果用同步的webapiMethod,则没这么多问题,但官方文档推荐异步读写请求...具体看文档
         // https://learn.microsoft.com/zh-cn/aspnet/core/performance/performance-best-practices?view=aspnetcore-7.0#avoid-synchronous-read-or-write-on-httprequesthttpresponse-body
-        return webapiMethod.Invoke(workapi, null) as Task;
+
+        // 执行方法
+        return apiMInfo.method.Invoke(workapi, apiMInfo.paras) as Task;
+    }
+
+    /// <summary>
+    /// 检查方法重载,选取匹配的一个重载,并且生成参数数组,在调用时使用.
+    /// </summary>
+    private static (MethodInfo method, object[] paras) ApiMethodOverloadCheck(MethodInfo[] minfoArr)
+    {
+        // 目前不支持重载玩法,匹配重载比较麻烦.
+        //     目前实现了POST/GET两种Http请求方式,所以至多需要写2个重载,每个方法贴一种特性,
+        // 确保(方法名字+请求特性)的组合是唯一的.
+        //     这是为了可以实现同名字方法,一个处理GET请求,一个处理POST请求.
+        //     如果支持Create,Delete这些了,那么有几种请求方式,至多需要写几个重载
+
+        MethodInfo m = null;
+        // 没有重载情况:这是正常情况
+        if (minfoArr.Length == 1)
+            m = minfoArr[0];
+
+        // 不幸写了多个重载时,返回无参数的重载方法
+        if (m == null)
+        {
+            m = minfoArr.FirstOrDefault(m => m.GetParameters().Length == 0);
+        }
+
+        // 没有无参重载,不再匹配,直接报错
+        if (m == null)
+            return (null, null);
+
+        // 参数处理:有默认值使用默认值.没有时,以参数类型默认值填充.
+        object[] paras = null;
+        if (m.GetParameters().Length > 0)
+        {
+            paras = m.GetParameters().Select(o =>
+            {
+                if (o.HasDefaultValue)
+                    return o.DefaultValue;
+                // 建立值类型的实例,可以得到值类型的默认值
+                return o.ParameterType.IsValueType ?
+                       Activator.CreateInstance(o.ParameterType) : null;
+            }).ToArray();
+        }
+
+        return (m, paras);
+    }
+
+    /// <summary>
+    /// 检查方法返回类型
+    /// </summary>
+    /// <param name="minfoArr"></param>
+    /// <returns></returns>
+    private static MethodInfo[] ApiMethodsReTypeCheck(MethodInfo[] minfoArr)
+    {
+        return minfoArr.Where(m => m.ReturnType == typeof(Task)).ToArray();
+    }
+
+    /// <summary>
+    /// 检查方法特性
+    /// </summary>
+    /// <returns></returns>
+    private static MethodInfo[] ApiMethodsFeatureCheck(MethodInfo[] methods, string httpMethod)
+    {
+        // 贴有的[HTTPGET]或[HTTPPOST]与请求方法类型匹配,例如GET请求匹配[HTTPGET]
+        Dictionary<string, Func<MethodInfo, bool>> checkDict = new();
+        checkDict.Add("POST", (minfo) =>
+        {
+            return Attribute.IsDefined(minfo, typeof(HTTPPOSTAttribute));
+        });
+        checkDict.Add("GET", (minfo) =>
+        {
+            return Attribute.IsDefined(minfo, typeof(HTTPGETAttribute));
+        });
+
+        return methods.Where(
+                m => checkDict.TryGetValue(httpMethod, out var check) && check(m)).
+            ToArray();
+    }
+
+    /// <summary>
+    /// 查找匹配的方法,在找到的类中
+    /// </summary>
+    /// <param name="apiType"></param>
+    /// <returns></returns>
+    private static MethodInfo[] QueryApiMethod(Type apiType, string methodName)
+    {
+        // 再到类中寻找方法,有重载时,会找到多个方法
+        MethodInfo[] methods = apiType.GetMethods().Where
+        (minfo => string.Compare(minfo.Name, methodName, true) == 0).ToArray();
+        // 未找到方法
+        if (methods.Length == 0)
+        {
+            return null;
+        }
+        return methods;
+    }
+
+    /// <summary>
+    /// 查找匹配的类,在当前程序集中.必须继承ApiBase类
+    /// </summary>
+    /// <param name="apiCls"></param>
+    /// <returns></returns>
+    private static Type QueryApiClass(string apiClsName)
+    {
+        // 程序集名字,也是默认命名空间名字.
+        string defNs = Assembly.GetExecutingAssembly().GetName().Name;
+        // 类一般在默认命名空间下,在前面添加默认命名空间后查找.
+        // 没有,再去掉默认命名空间查找
+        Type apiType =
+            Assembly.GetExecutingAssembly().GetType($"{defNs}.{apiClsName}", false, true)
+         ?? Assembly.GetExecutingAssembly().GetType($"{apiClsName}", false, true);
+
+        // 还没有,报错
+        if (apiType == null)
+        {
+            return null;
+        }
+
+        // 必须继承ApiBase类
+        return apiType.BaseType == typeof(ApiBase) ? apiType : null;
+    }
+
+    /// <summary>
+    /// 分析url地址,返回用于匹配的类名和方法名
+    /// </summary>
+    /// <returns></returns>
+    private static (string apiCls, string apiMethod) ParseUrl(HttpContext context)
+    {
+        // Path.Value值是路径,不含协议名字(http),主机名字(www.xx.com),?后面的参数(?a=1)
+        // 例:"/api/emp/getlist"
+        string[] urlparts = context.Request.Path.Value.Split('/');
+
+        // 匹配规则: 倒数1段是方法名,例:getlist, 倒数2段是类名, 前面部分是类的命名空间
+        // 如果开启了静态文件,比如/api/emp/index.html,但文件没找到时,也会进入这里处理
+        if (urlparts[^1].Contains('.') || urlparts.Length < 3)
+        {
+            return (null, null);
+        }
+
+        // api类名全称是- [命名空间].类名Api(约定后缀).例:[MyWebApi.api].empApi
+        // 后缀约定:一个成为api的类,结尾为Api.例如: UserApi
+        string apiClass = string.Join('.', urlparts[1..^1]) + "Api";
+        string apiMethod = urlparts[^1];
+        return (apiClass, apiMethod);
     }
 
     /// <summary>
@@ -124,42 +249,21 @@ internal class ApiHandler
     /// <param name="webapiMethod"></param>
     /// <param name="webapiType"></param>
     /// <returns></returns>
-    private static bool AuthCheck(HttpContext context, MethodInfo webapiMethod, Type webapiType, ApiBase webapiInstance)
+    private static bool ApiAuthCheck(HttpContext context, MethodInfo webapiMethod, Type webapiType)
     {
-        if (Attribute.IsDefined(webapiType, typeof(AUTHAttribute)))
+        // 如果类上贴了[AUTH],类里面所有方法都放行或者拒绝,无需再一个个贴.
+        if (Attribute.IsDefined(webapiType, typeof(AUTHBaseAttribute)))
         {
-            var auth = webapiType.GetCustomAttribute<AUTHAttribute>(false);
-            return auth.Authenticate(context, webapiInstance);
+            var auth = webapiType.GetCustomAttribute<AUTHBaseAttribute>(false);
+            return auth.Authenticate(context);
         }
-        if (Attribute.IsDefined(webapiMethod, typeof(AUTHAttribute)))
+        // 只在方法上贴特性,验证只对单个方法
+        if (Attribute.IsDefined(webapiMethod, typeof(AUTHBaseAttribute)))
         {
-            var auth = webapiMethod.GetCustomAttribute<AUTHAttribute>(false);
-            return auth.Authenticate(context, webapiInstance);
+            var auth = webapiMethod.GetCustomAttribute<AUTHBaseAttribute>(false);
+            return auth.Authenticate(context);
         }
         return true;
-    }
-
-    /// <summary>
-    /// 方法特性检查.是否贴有作为接口的三个特性
-    /// 并非必要,只是为了加一个功能,让贴了特性的方法才能被访问.没贴的当内部方法
-    /// </summary>
-    /// <param name="webapiMethod">要检查的接口方法</param>
-    /// <returns></returns>
-    private static bool AttributeCheck(HttpContext context, MethodInfo webapiMethod)
-    {
-        string httpMethod = context.Request.Method.ToUpper();
-        if (httpMethod == "POST" && Attribute.IsDefined(webapiMethod, typeof(HTTPPOSTAttribute)))
-        {
-            return true;
-        }
-        else if (httpMethod == "GET" && Attribute.IsDefined(webapiMethod, typeof(HTTPGETAttribute)))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
     }
 
     /// <summary>

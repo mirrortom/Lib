@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
-
 namespace WebDemo;
 
 #region 功能特性
@@ -16,17 +15,6 @@ internal class WebApiBaseAttribute : Attribute
     /// </summary>
     public int Id { get; set; }
 }
-internal class AUTHAttribute : WebApiBaseAttribute
-{
-    /// <summary>
-    /// <para>判断解析token,检查登录者信息</para>
-    /// <para>参考: string token = context.Request.Headers["Auth"].ToString();</para>
-    /// <para>继承此特性,实现本方法,贴在webapi上</para>
-    /// </summary>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    internal virtual bool Authenticate(HttpContext context, ApiBase wabapi) => true;
-}
 internal class HTTPPOSTAttribute : WebApiBaseAttribute
 {
 
@@ -35,13 +23,17 @@ internal class HTTPGETAttribute : WebApiBaseAttribute
 {
 
 }
-#endregion
 
 /// <summary>
-/// 请求者信息,据需求修改此类
+/// 验证,用于API类或方法
 /// </summary>
-internal class User
+internal class AUTHBaseAttribute : WebApiBaseAttribute
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    /// <summary>
+    /// <para>判断解析token,检查登录者信息,按需重写本方法</para>
+    /// </summary>
+    /// <returns></returns>
+    internal virtual bool Authenticate(HttpContext context) => true;
 }
+
+#endregion

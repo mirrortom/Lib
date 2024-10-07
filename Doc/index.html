@@ -50,12 +50,7 @@
   <div class="container">
     <div class="mainmenubox">
       <m-docmenu class="pd-lr-10 pd-b-30" id="main_menubox">
-        <ul class="docmenu-group">
-          <li>
-            <span class="docmenu-title"><i class="docmenu-open"></i>概述</span>
-          </li>
-          <li><a class="docmenu-item" urlid="about.html">关于</a></li>
-        </ul>
+        <a class="docmenu-item" urlid="about.html">关于</a>
         <ul class="docmenu-group">
           <li>
             <span class="docmenu-title"><i class="docmenu-open"></i>c#</span>
@@ -93,7 +88,7 @@
       $('#main_menubox')[0].create(null, (menu) => {
         $('#page_content').load($(menu).prop('urlid'), navInPage);
       });
-      $('#main_menubox')[0].activeItem(3);
+      $('#main_menubox')[0].activeItem(0);
 
       // 生成页面内导航
       // 找出页面内所有的标题,生成一个导航列表,用<a href=#id>的方式在页面内定位.由js生成标题dom的id属性.

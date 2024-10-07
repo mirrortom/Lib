@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,7 +18,13 @@ namespace WebDemo;
 /// </summary>
 public class ApiBase
 {
+    public ApiBase()
+    {
+
+    }
+
     #region 请求上下文对象及其它工具属性
+
     /// <summary>
     /// ApiHandler.UrlMapMethodMW(),URL中间件调用此方法设定请求上下文对象和其它功能
     /// </summary>
@@ -27,54 +34,26 @@ public class ApiBase
         this.HttpContext = context;
         this.Request = context.Request;
         this.Response = context.Response;
-        this.MemoryCache = context.RequestServices.GetService(typeof(IMemoryCache)) as IMemoryCache;
     }
-    /// <summary>
-    /// 公用内存缓存,来自HttpContext.RequestServices
-    /// </summary>
-    protected IMemoryCache MemoryCache { get; private set; }
+
     /// <summary>
     /// 为当前 HTTP 请求获取 HttpRequestBase 对象,来自HttpContext.Request
     /// </summary>
     protected HttpRequest Request { get; private set; }
+
     /// <summary>
     /// 为当前 HTTP 响应获取 HttpResponseBase 对象,来自HttpContext.Response
     /// </summary>
     protected HttpResponse Response { get; private set; }
+
     /// <summary>
     /// 获取有关单个 HTTP 请求的 HTTP 特定的信息.(可直接使用其它便利属性),由ApiHandler的URL中间件设定
     /// </summary>
     protected HttpContext HttpContext { get; private set; }
 
-    internal void SetUser(User user)
-    {
-        this.User = user;
-    }
-    /// <summary>
-    /// 当前请求者信息(可以在webapi继承类中重写为返回实际类型的User)
-    /// <para>Auth.Authenticate()方法调用时会设定当前请求者信息</para>
-    /// </summary>
-    internal virtual User User { get; private set; }
-    #endregion
+    #endregion 请求上下文对象及其它工具属性
 
     #region 便利方法,将请求参数转为对象
-
-    /// <summary>
-    /// 获取GET参数,并且转为动态类型
-    /// 无参数时返回空对象(ExpandoObject)
-    /// </summary>
-    /// <returns></returns>
-    protected virtual dynamic ParaGET()
-    {
-        dynamic obj = new System.Dynamic.ExpandoObject();
-        foreach (string key in this.Request.Query.Keys)
-        {
-            var values = this.Request.Query[key];
-            ((IDictionary<string, object>)obj).Add(key,
-                values.Count > 1 ? values : values.FirstOrDefault());
-        }
-        return obj;
-    }
     /// <summary>
     /// 获取GET参数,并且转为字典类型
     /// 无参数时返回空字典
@@ -90,15 +69,28 @@ public class ApiBase
         }
         return dict;
     }
+
     /// <summary>
-    /// 获取GET参数,并且转为指定类型
+    /// 获取GET参数,并且转为动态类型
+    /// 无参数时返回空对象(JObject)
+    /// </summary>
+    /// <returns></returns>
+    protected virtual dynamic ParaGET()
+    {
+        var dict = ParaDictGET();
+        dynamic obj = JObject.FromObject(dict);
+        return obj;
+    }
+
+    /// <summary>
+    /// 获取GET参数,并且转为T类型
     /// 无参数时返回T的实例
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     protected virtual T ParaGET<T>()
     {
-        dynamic obj = this.ParaGET();
+        var obj = this.ParaDictGET();
         string json = JsonConvert.SerializeObject(obj);
         return JsonConvert.DeserializeObject<T>(json);
     }
@@ -106,24 +98,6 @@ public class ApiBase
     // 关于表单参数读取的性能建议文档
     // https://learn.microsoft.com/zh-cn/aspnet/core/performance/performance-best-practices?view=aspnetcore-7.0#prefer-readformasync-over-requestform
 
-
-    /// <summary>
-    /// 获取form参数,并且转为动态类型
-    /// 无参数时返回空对象(ExpandoObject)
-    /// </summary>
-    /// <returns></returns>
-    protected virtual async Task<dynamic> ParaForm()
-    {
-        dynamic obj = new System.Dynamic.ExpandoObject();
-        var form = await this.Request.ReadFormAsync();
-        foreach (string key in form.Keys)
-        {
-            var values = form[key];
-            ((IDictionary<string, object>)obj).Add(key,
-                values.Count > 1 ? values : values.FirstOrDefault());
-        }
-        return obj;
-    }
     /// <summary>
     /// 获取Form参数,并且转为字典类型
     /// 无参数时返回空字典
@@ -131,7 +105,7 @@ public class ApiBase
     /// <returns></returns>
     protected virtual async Task<Dictionary<string, object>> ParaDictForm()
     {
-        Dictionary<string, object> dict = new();
+        Dictionary<string, object> dict = [];
         var form = await this.Request.ReadFormAsync();
         foreach (string key in form.Keys)
         {
@@ -140,6 +114,19 @@ public class ApiBase
         }
         return dict;
     }
+
+    /// <summary>
+    /// 获取form参数,并且转为动态类型
+    /// 无参数时返回空对象(JObject)
+    /// </summary>
+    /// <returns></returns>
+    protected virtual async Task<dynamic> ParaForm()
+    {
+        var dict = await ParaDictForm();
+        dynamic obj = JObject.FromObject(dict);
+        return obj;
+    }
+
     /// <summary>
     /// 获取form参数,并且转为指定类型
     /// 无参数时返回T的实例
@@ -148,7 +135,7 @@ public class ApiBase
     /// <returns></returns>
     protected virtual async Task<T> ParaForm<T>()
     {
-        dynamic obj = await this.ParaForm();
+        dynamic obj = await this.ParaDictForm();
         string json = JsonConvert.SerializeObject(obj);
         return JsonConvert.DeserializeObject<T>(json);
     }
@@ -168,7 +155,7 @@ public class ApiBase
         return new StreamReader(this.Request.Body).ReadToEndAsync();
     }
 
-    #endregion
+    #endregion 便利方法,将请求参数转为对象
 
     #region response返回几种结果形式
 
@@ -178,7 +165,6 @@ public class ApiBase
 
     // 误区
     // Response返回方法做成一个Task方法,在webapi中可以异步调用.
-
 
     /// <summary>
     /// 返回JSON格式数据.obj如果是字符串,则视为json格式字符串直接返回.
@@ -201,15 +187,17 @@ public class ApiBase
         this.Response.ContentType = "text/html;charset=utf-8";
         return this.Response.WriteAsync(html);
     }
+
     /// <summary>
     /// 返回纯文本格式字符串
     /// </summary>
     /// <param name="text"></param>
     protected Task Text(string text)
     {
-        this.Response.ContentType = "text/html;charset=utf-8";
+        this.Response.ContentType = "text/plain;charset=utf-8";
         return this.Response.WriteAsync(text);
     }
+
     /// <summary>
     /// 返回文件,需要指定文件内容头型
     /// </summary>
@@ -220,6 +208,7 @@ public class ApiBase
         this.Response.ContentType = $"{contentType};charset=utf-8";
         return this.Response.SendFileAsync(fileName);
     }
+
     /// <summary>
     /// 返回文件,指定文件内容头型,下载文件显示名
     /// </summary>
@@ -233,5 +222,5 @@ public class ApiBase
         return this.Response.SendFileAsync(fileName);
     }
 
-    #endregion
+    #endregion response返回几种结果形式
 }
