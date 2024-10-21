@@ -21,14 +21,10 @@ class UploadFileApi : ApiBase
 
         // 保存文本
         dynamic para = await this.ParaForm();
-        if (((IDictionary<string, object>)para).ContainsKey("txtcont")
-            && !string.IsNullOrWhiteSpace(para.txtcont))
+        if (para.txtcont != null && !string.IsNullOrWhiteSpace((string)para.txtcont))
         {
             string savePath = this.GetFileName(extName: "txt");
-            using (StreamWriter sw = new(savePath))
-            {
-                sw.Write(para.txtcont);
-            }
+            System.IO.File.WriteAllText(savePath, (string)para.txtcont);
             //
             log.AppendLine($"文本已保存为txt文件[{savePath}]");
         }
@@ -54,7 +50,7 @@ class UploadFileApi : ApiBase
             await this.Json(new { errcode = 200, errmsg = "未上传任何内容!" });
             return;
         }
-        await this.Json(new { errcode = 200, errmsg = log.ToString() });
+        await this.Json(new { errcode = 200, errmsg = log.ToString().TrimEnd([.. Environment.NewLine]) });
         //
     }
 

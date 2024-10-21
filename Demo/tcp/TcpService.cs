@@ -271,11 +271,11 @@ public class TcpService
         if (!this.TcpWorkers[index].IsClosed)
         {
             Print($"[ {this.TcpWorkers[index].Address} ]已切换这个客户端!");
-            Print($"请输入推送内容... (:q 退出该客户端)");
+            Print($"请输入推送内容... (:q *冒号q*退出该客户端)");
             while (true)
             {
                 string msg = Read().Trim();
-                if (msg.ToLower() == ":q")
+                if (msg.Equals(":q", StringComparison.CurrentCultureIgnoreCase))
                     break;
                 // 可能会写入失败,因为连接已经关闭
                 if (this.TcpWorkers[index].Write(msg))

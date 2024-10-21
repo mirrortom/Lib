@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Timers;
@@ -11,11 +12,19 @@ namespace Demo.tcp;
 /// </summary>
 internal class TcpClientWorker
 {
-    private readonly Socket client;
+    private Socket client;
     /// <summary>
     /// 最大连接时间,秒单位.过时主动关闭,0=不限制
     /// </summary>
     private readonly uint MaxTime;
+    /// <summary>
+    /// 远端IP
+    /// </summary>
+    private readonly string srvIp;
+    /// <summary>
+    /// 远端端口
+    /// </summary>
+    private readonly int srvPort;
     /// <summary>
     /// 建立连接到关闭时经过的秒数
     /// </summary>
@@ -26,16 +35,15 @@ internal class TcpClientWorker
     {
         try
         {
-            this.client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            client.Connect(iP, port);
-            this.IsClosed = false;
+
+            this.srvIp = iP.ToString();
+            this.srvPort = port;
             this.MaxTime = maxTime;
             // 连接时间计时
             this.Timer = new System.Timers.Timer(1000);
             this.Timer.Elapsed += Timer_ConnectedTime;
-            this.Timer.Start();
-            // 等待远方消息线程
-            this.WaitReadGuard();
+            // 连接
+            this.ReConnect();
         }
         catch (Exception e)
         {
@@ -62,17 +70,17 @@ internal class TcpClientWorker
     public uint ConnectedTime { get { return this.connectedTime; } }
 
     /// <summary>
-    /// 服务端地址 如果服务端程序退出或者关闭,返回-
+    /// 服务端地址 
     /// </summary>
     public string ServeAddress
     {
         get
         {
-            return this.client.Connected ? this.client.RemoteEndPoint.ToString() : "-";
+            return $"{this.srvIp},{this.srvPort}";
         }
     }
     /// <summary>
-    /// 客户端本地端点地址
+    /// 客户端本地端点地址 如果连接已经关闭,返回-
     /// </summary>
     public string Address
     {
@@ -182,5 +190,18 @@ internal class TcpClientWorker
         this.Timer.Stop();
         // 主动关闭连接中的socket会引发异常 Read()Write()方法会捕获到异常
         this.client.Close();
+    }
+
+    /// <summary>
+    /// 重新连接
+    /// </summary>
+    public void ReConnect()
+    {
+        this.client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        this.client.Connect(IPAddress.Parse(this.srvIp), this.srvPort);
+        this.IsClosed = false;
+        this.Timer.Start();
+        // 等待远方消息线程
+        this.WaitReadGuard();
     }
 }

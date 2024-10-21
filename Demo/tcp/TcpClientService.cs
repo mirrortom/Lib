@@ -16,12 +16,12 @@ public class TcpClientService
     /// <summary>
     /// 默认服务器IP终结点
     /// </summary>
-    private IPAddress iPAddress=IPAddress.Loopback;
-    private int port=5_0000;
+    private IPAddress iPAddress = IPAddress.Loopback;
+    private int port = 5_0000;
     /// <summary>
     /// 最大客户端连接数
     /// </summary>
-    private int MaxConn=100;
+    private int MaxConn = 100;
     /// <summary>
     /// 连接对象列表
     /// </summary>
@@ -33,7 +33,7 @@ public class TcpClientService
     /// <summary>
     /// 应用程序名字
     /// </summary>
-    private string AppName="Socket Tcp Client Manager";
+    private string AppName = "Socket Tcp Client Manager";
 
     public TcpClientService(int maxConn = 100)
     {
@@ -173,7 +173,7 @@ public class TcpClientService
         for (int i = 0; i < this.TcpClientWorkers.Count; i++)
         {
             var item = this.TcpClientWorkers[i];
-            string status = item.IsClosed ? "关闭" : "已连接";
+            string status = item.IsClosed ? "X关闭" : "已连接";
             Print($"[{i}]\t{item.Address}\t{item.ServeAddress}\t{status}\t{item.ConnectedTime}");
         }
     }
@@ -194,7 +194,7 @@ public class TcpClientService
     }
 
     /// <summary>
-    /// 切换到一个已有的客户端连接.推送消息
+    /// 菜单: 切换到一个已有的客户端连接.推送消息
     /// </summary>
     /// <param name="index"></param>
     /// <returns></returns>
@@ -214,11 +214,11 @@ public class TcpClientService
         if (!this.TcpClientWorkers[index].IsClosed)
         {
             Print($"[ {this.TcpClientWorkers[index].Address} ]已切换这个客户端!");
-            Print($"输入发送内容... (:q 退出该客户端)");
+            Print($"输入发送内容... (:q *冒号q*退出该客户端)");
             while (true)
             {
                 string msg = Read().Trim();
-                if (msg.ToLower() == ":q")
+                if (msg.Equals(":q", StringComparison.CurrentCultureIgnoreCase))
                     break;
                 // 可能会写入失败,因为连接已经关闭
                 if (this.TcpClientWorkers[index].Write(msg))
@@ -228,9 +228,10 @@ public class TcpClientService
             return;
         }
         Print($"客户端 [ {index} ] 已经失去连接,是否新建y/n?");
-        if (Console.ReadLine().Trim().ToLower() == "y")
+        if ("y".Equals(Console.ReadLine()?.Trim(), StringComparison.CurrentCultureIgnoreCase))
         {
-            this.NewClientAction();
+            this.TcpClientWorkers[index].ReConnect();
+            ChgWorkerAction(index);
         }
     }
 
@@ -269,7 +270,7 @@ public class TcpClientService
     }
 
     /// <summary>
-    /// 删除指定客户端或者已关闭客户端
+    /// 菜单: 删除指定客户端或者已关闭客户端
     /// </summary>
     /// <param name="index"></param>
     /// <returns></returns>
@@ -299,7 +300,7 @@ public class TcpClientService
     }
 
     /// <summary>
-    /// 清除内容
+    /// 菜单: 清除内容
     /// </summary>
     /// <param name="args"></param>
     private void ClearAction(params object[] args)
