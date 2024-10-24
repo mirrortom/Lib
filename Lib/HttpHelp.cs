@@ -22,7 +22,11 @@ public class HttpHelp
     /// </summary>
     public static HttpClient Client
     {
-        get { return client ?? new(); }
+        get
+        {
+            client ??= new();
+            return client;
+        }
     }
 
     /// <summary>

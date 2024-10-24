@@ -70,6 +70,31 @@ abstract public class DBMO
     public string LogOrder { get; set; } = string.Empty;
     #endregion
 
+    #region 抽象方法由具体数据库对象类实现
+
+    /// <summary>
+    /// 辅助方法: 实例化db DbConnection对象
+    /// </summary>
+    /// <returns></returns>
+    abstract protected void ConnInstance();
+
+    /// <summary>
+    /// 辅助方法: 实例化sql命令对象
+    /// </summary>
+    abstract protected void CmdInstance(string sql);
+
+    /// <summary>
+    /// 辅助方法: 实例化sql参数对象,
+    /// </summary>
+    abstract protected DbParameter ParaInstance(string name, object val);
+
+    /// <summary>
+    /// 辅助方法: 实例化sql参数对象,为了存储过程的传出参数
+    /// </summary>
+    abstract protected DbParameter OutParaInstance(string name, int dbType);
+
+    #endregion
+
     #region 开启与关闭数据库连接
 
     /// <summary>
@@ -77,20 +102,24 @@ abstract public class DBMO
     /// </summary>
     private void OpenDB()
     {
-        // 建立链接对象,打开连接
-        this.ConnInstance();
-        this.conn.ConnectionString = this.connString;
-        this.conn.Open();
-        // 命令装载到这个连接
-        this.cmd.Connection = this.conn;
-        // 如果有事务,命令在事务中执行
+        // 连接未建立(含首次执行任务,在或者不在事务中的情况):建立连接对象,打开连接
+        if (this.conn == null)
+        {
+            // 建立链接对象,打开连接
+            this.ConnInstance();
+            this.conn.ConnectionString = this.connString;
+            this.conn.Open();
+        }
+        // 如果开启了事务,可能会多次执行任务,事务对象只在首次执行任务时建立一次
         if (this.inTran == true)
         {
-            // 事务开启时,首次执行命令会建立过事务对象
+            // 事务开启时,首次执行命令会建立事务对象
             this.tran ??= this.conn.BeginTransaction();
             // 命令装载到这个事务
             this.cmd.Transaction = this.tran;
         }
+        // 命令装载到这个连接
+        this.cmd.Connection = this.conn;
     }
     /// <summary>
     /// 关闭数据库(类内用于自动关闭使用)
@@ -110,7 +139,7 @@ abstract public class DBMO
             string msg = this.message ?? "Success!";
             dbLog.DBLog($"提示信息:[{msg}] 任务id:[{this.LogOrder}] {Environment.NewLine}SQL:[{this.cmd.CommandText}]{Environment.NewLine}参数:[{paras}]");
         }
-        // 连接开启时,并且事务关闭时
+        // 连接开启时,并且不在事务中进行时,表示任务完成,可以释放资源了.
         if (this.conn != null && this.tran == null)
         {
             // 释放连接资源
@@ -547,30 +576,6 @@ abstract public class DBMO
             }
         }
     }
-
-
-    // 以下抽象辅助方法由具体数据库对象类实现
-
-    /// <summary>
-    /// 辅助方法: 实例化db DbConnection对象
-    /// </summary>
-    /// <returns></returns>
-    abstract protected void ConnInstance();
-
-    /// <summary>
-    /// 辅助方法: 实例化sql命令对象
-    /// </summary>
-    abstract protected void CmdInstance(string sql);
-
-    /// <summary>
-    /// 辅助方法: 实例化sql参数对象,
-    /// </summary>
-    abstract protected DbParameter ParaInstance(string name, object val);
-
-    /// <summary>
-    /// 辅助方法: 实例化sql参数对象,为了存储过程的传出参数
-    /// </summary>
-    abstract protected DbParameter OutParaInstance(string name, int dbType);
 
     #endregion
 
