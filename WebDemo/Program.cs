@@ -1,9 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
-using WebDemo;
+﻿using WebDemo;
 using cfg = WebDemo.Config;
 
 // 加载配置选项

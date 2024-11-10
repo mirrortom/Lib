@@ -1,21 +1,17 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Cors.Infrastructure;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.FileProviders;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace WebDemo;
 
 /// <summary>
 /// 载入配置,并提供配置项
 /// </summary>
-internal static class Config
+internal class Config
 {
-    // 配置json文件名字
-    private readonly static string fileName = "settings.json";
-
+    /// <summary>
+    /// 开启静态文件,true=开启
+    /// </summary>
+    internal static bool EnableStatic { get; private set; }
     // 监听地址
     internal static string[] Urls { get; private set; }
     // 默认文档配置项
@@ -29,42 +25,40 @@ internal static class Config
     internal static void Load()
     {
         // 读取自定义配置json
-        IConfiguration config = new ConfigurationBuilder()
-            .AddJsonFile(fileName)
+        IConfiguration set = new ConfigurationBuilder()
+            .AddJsonFile("settings.json")
             .Build();
+        var cfg = new Config();
+
+        // 是否开启静态文件
+        Config.EnableStatic = set.GetValue("enableStatic", 0) == 1;
 
         // 默认文档配置项
-        DefaultDocOptionsSet(config.GetValue<string>("defaultDoc"));
+        string[] docs = set.GetSection("defaultDoc").Get<string[]>();
+        Config.DefaultDocOptionsSet(docs);
 
         // urls监听地址
-        UrlsSet(config.GetValue<string>("urls"));
+        Config.Urls = set.GetSection("urls").Get<string[]>();
 
         // 虚拟目录
-        var virtualDirs = config.GetSection("virtualDir").Get<Dictionary<string, string>[]>();
-        VirtualDirsOptionsSet(virtualDirs);
+        var virtualDirs = set.GetSection("virtualDir").Get<Dictionary<string, string>[]>();
+        Config.VirtualDirsOptionsSet(virtualDirs);
     }
 
     /// <summary>
     /// 默认文档设定
     /// </summary>
     /// <param name="docNames"></param>
-    private static void DefaultDocOptionsSet(string docNames)
+    private static void DefaultDocOptionsSet(string[] docNames)
     {
-        DefaultDocOptions = new DefaultFilesOptions();
-        string[] docs = docNames.Split(';');
-        foreach (var item in docs)
+        if (docNames == null || docNames.Length == 0) return;
+        Config.DefaultDocOptions = new();
+        // DefaultFileNames有默认值,这里重新new,去掉默认值.
+        DefaultDocOptions.DefaultFileNames = [];
+        foreach (var item in docNames)
         {
             DefaultDocOptions.DefaultFileNames.Add(item);
         }
-    }
-
-    /// <summary>
-    /// urls监听地址设定
-    /// </summary>
-    /// <param name="urlsstr"></param>
-    private static void UrlsSet(string urlsstr)
-    {
-        Urls = urlsstr.Split(';');
     }
 
     // 静态文件配置项
@@ -78,7 +72,7 @@ internal static class Config
         // virtualDir: [{fdir:"物理路径(相对web根目录)",refdir:"url映射路径,斜杠/打头"}]
         if (virtualDir == null || virtualDir.Length == 0)
             return;
-        VirtualDirsOptions = new List<StaticFileOptions>();
+        VirtualDirsOptions = [];
         foreach (var item in virtualDir)
         {
             VirtualDirsOptions.Add(new StaticFileOptions()

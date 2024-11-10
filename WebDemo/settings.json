@@ -1,9 +1,11 @@
 ﻿// 自定义配置文件
 {
   // kestrel的监听端口: 多个用;号隔开
-  "urls": "http://localhost:50005",
+  "urls": [ "http://localhost:50005" ],
+  // 开始静态文件,1=开启,0或其它=不启用
+  "enableStatic": 0,
   // 默认页面: 多个用;号隔开.使用相对路径(相对web根目录)
-  "defaultDoc": "index.html",
+  "defaultDoc": [ "index.html" ],
   // 虚拟目录: {fdir:"物理路径(相对目录,从AppContext.BaseDirectory目录开始)",refdir:"url映射路径,斜杠/打头"}
   "virtualDir": []
 }
